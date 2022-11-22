@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>UniversityFinder</title>
+  <title>Food & Drinks Finder</title>
   <!-- Calcite-->
   <link rel="stylesheet" type="text/css" href="https://js.arcgis.com/calcite-components/1.0.0-beta.93/calcite.css" />
   <script type="module" src="https://js.arcgis.com/calcite-components/1.0.0-beta.93/calcite.esm.js"></script>
   <!-- JSAPI -->
   <link id="jsapi-theme-light" rel="stylesheet"
-    href="https://js.arcgis.com/4.22/@arcgis/core/assets/esri/themes/light/main.css">
-  <link disabled id="jsapi-theme-dark" rel="stylesheet" href="https://js.arcgis.com/4.22/esri/themes/dark/main.css" />
+    href="https://js.arcgis.com/4.25/@arcgis/core/assets/esri/themes/light/main.css">
+  <link disabled id="jsapi-theme-dark" rel="stylesheet" href="https://js.arcgis.com/4.25/esri/themes/dark/main.css" />
   <!-- App-->
   <link rel="stylesheet" href="app/app.css" />
   <script type="module" src="app/app.js"></script>
@@ -23,8 +23,8 @@
 <body>
     <calcite-shell class="calcite-presentation" content-behind id="shell">
       <div class="temporary-header" slot="header">
-        <calcite-icon icon="education" scale="l"></calcite-icon>
-        UniversityFinder
+        <calcite-icon icon="walking" scale="l"></calcite-icon>
+        Food & Drinks
         <calcite-action-pad layout="horizontal" expand-disabled>
           <calcite-action id="themeToggle" text="Light" icon="brightness"></calcite-action>
         </calcite-action-pad>
@@ -88,37 +88,23 @@
   &lt;/calcite-action&gt;
   &lt;calcite-block heading=&quot;Basics&quot; open&gt;
     &lt;calcite-label&gt;
-      School type
-      &lt;calcite-select id=&quot;schoolType&quot;&gt;
+      Amenity type
+      &lt;calcite-select id=&quot;amenityType&quot;&gt;
         &lt;calcite-option value=&quot;all&quot;&gt;All&lt;/calcite-option&gt;
       &lt;/calcite-select&gt;
     &lt;/calcite-label&gt;
     &lt;calcite-label&gt;
-      Highest degree offered
-      &lt;div id=&quot;programType&quot;&gt;&lt;/div&gt;
+      Cuisine
+      &lt;div id=&quot;cuisineType&quot;&gt;&lt;/div&gt;
     &lt;/calcite-label&gt;
     &lt;calcite-label&gt;
-      Enrollment range
+      Walking Distance
       &lt;calcite-slider id=&quot;attendance&quot; range label-handles
-       min-value=&quot;0&quot; max-value=&quot;160000&quot;
-       min=&quot;0&quot; max=&quot;160000&quot;
-        step=&quot;100&quot;&gt;
+       max-value=&quot;5&quot;
+       max=&quot;5&quot;
+        step=&quot;1&quot;&gt;
       &lt;/calcite-slider&gt;
     &lt;/calcite-label&gt;
-  &lt;/calcite-block&gt;
-  &lt;calcite-block heading=&quot;Housing&quot; open&gt;
-    &lt;calcite-block-section id=&quot;housingSection&quot;
-    text=&quot;Offers on campus housing&quot;
-     toggle-display=&quot;switch&quot;&gt;
-      &lt;calcite-label&gt;
-        Dormitory capacity
-        &lt;calcite-slider id=&quot;housing&quot; range label-handles
-         min-value=&quot;0&quot; max-value=&quot;20000&quot;
-        min=&quot;0&quot; max=&quot;20000&quot;
-          step=&quot;100&quot;&gt;
-        &lt;/calcite-slider&gt;
-      &lt;/calcite-label&gt;
-    &lt;/calcite-block-section&gt;
   &lt;/calcite-block&gt;
 &lt;/calcite-panel&gt;
 
@@ -145,7 +131,7 @@ async function queryItems(start = 0) {
   resetNode.hidden = !appState.hasFilterChanges;
   resetNode.indicator = appState.hasFilterChanges;
 
-  if (!collegeLayerView) {
+  if (!amenityLayerView) {
     return;
   }
 
@@ -153,18 +139,20 @@ async function queryItems(start = 0) {
 
   const where = whereClause();
 
-  collegeLayerView.featureEffect = {
+  amenityLayerView.featureEffect = {
     filter: {
       where: where,
+      geometry: appState.walkingDistanceGraphic ? 
+        appState.walkingDistanceGraphic.geometry : undefined
     },
     excludedEffect: "grayscale(80%) opacity(30%)",
   };
 
-  await whenFalseOnce(collegeLayerView, "updating");
+  await whenFalseOnce(amenityLayerView, "updating");
 
   if (start === 0) {
     appState.count =
-    await collegeLayerView.queryFeatureCount({
+    await amenityLayerView.queryFeatureCount({
       geometry: view.extent.clone(),
       where,
     });
@@ -175,14 +163,14 @@ async function queryItems(start = 0) {
   paginationNode.hidden =
    appState.count <= appConfig.pageNum;
 
-  const results = await collegeLayerView.queryFeatures({
+  const results = await amenityLayerView.queryFeatures({
     start,
     num: appConfig.pageNum,
     geometry: view.extent.clone(),
     where: whereClause(),
     outFields: [
-      ...appConfig.collegeLayerOutFields,
-      collegeLayer.objectIdField,
+      ...appConfig.amenityLayerOutFields,
+      amenityLayer.objectIdField,
     ],
   });
 
@@ -210,56 +198,53 @@ function displayResult(result) {
   const item = document.createElement("calcite-card");
   itemButton.appendChild(item);
 
-  if (parseInt(attributes["DORM_CAP"]) !== -999) {
-    const chip = document.createElement("calcite-chip");
-    chip.icon = "locator";
-    chip.slot = "footer-trailing";
-    chip.scale = "s";
-    chip.innerText = "Housing";
-    item.appendChild(chip);
+  if(result.attributes['name']){
+    const attributes = result.attributes;
+    const itemButton = document.createElement("button");
+    itemButton.className = "item-button";
+    const item = document.createElement("calcite-card");
+    itemButton.appendChild(item);
+
+    const chipState = document.createElement("calcite-chip");
+    chipState.slot = "footer-leading";
+    chipState.scale = "s";
+    chipState.icon = "group";
+    chipState.innerText = attributes["amenity"];
+    item.appendChild(chipState);
+
+    const title = document.createElement("span");
+    title.slot = "title";
+    title.innerText = handleCasing(attributes["name"]);
+    item.appendChild(title);
+
+    if(attributes["cuisine"]) {
+      const summary = document.createElement("span");
+      summary.slot = "subtitle";
+      summary.innerText = handleCasing(attributes["cuisine"]);     
+      item.appendChild(summary);
+    }
+    itemButton.addEventListener("click", () =>
+      resultClickHandler(result.attributes[amenityLayer.objectIdField])
+    );
+
+    resultsNode.appendChild(itemButton);
   }
-
-  const chipState = document.createElement("calcite-chip");
-  chipState.slot = "footer-leading";
-  chipState.scale = "s";
-  chipState.icon = "group";
-  chipState.innerText = attributes["sizeRange"];
-  item.appendChild(chipState);
-
-  const title = document.createElement("span");
-  title.slot = "title";
-  title.innerText = handleCasing(attributes["NAME"]);
-
-  const summary = document.createElement("span");
-  summary.slot = "subtitle";
-  summary.innerText =
-  handleCasing(attributes["NAICS_DESC"]);
-
-  item.appendChild(title);
-  item.appendChild(summary);
-
-  itemButton.addEventListener("click", () =>
-    resultClickHandler(
-      result.attributes[collegeLayer.objectIdField])
-  );
-
-  resultsNode.appendChild(itemButton);
 }
 
 </code></pre>
               <pre hidden class="pre-lang"><code class="language-js">
-// Attendance Slider
-attendanceNode.addEventListener("calciteSliderInput",
+// Walking Distance Slider
+walkingDistanceNode.addEventListener("calciteSliderInput",
 (event) => {
-  appState.attendance.min = event.target.minValue;
-  appState.attendance.max = event.target.maxValue;
+  appState.walkingDistance.min = event.target.minValue;
+  appState.walkingDistance.max = event.target.maxValue;
   appState.hasFilterChanges = true;
   filterMap();
 });
-attendanceNode.addEventListener("calciteSliderChange",
+walkingDistanceNode.addEventListener("calciteSliderChange",
 (event) => {
-  appState.attendance.min = event.target.minValue;
-  appState.attendance.max = event.target.maxValue;
+  appState.walkingDistance.min = event.target.minValue;
+  appState.walkingDistance.max = event.target.maxValue;
   appState.hasFilterChanges = true;
   queryItems();
 });
@@ -297,28 +282,22 @@ body.calcite-theme-dark {
           <calcite-action id="reset" icon="reset" slot="header-actions-end" hidden></calcite-action>
           <calcite-block heading="Basics" open>
             <calcite-label>
-              School type
-              <calcite-select id="schoolType">
+              Amenity type
+              <calcite-select id="amenityType">
                 <calcite-option value="all">All</calcite-option>
               </calcite-select>
             </calcite-label>
             <calcite-label>
-              Highest degree offered
-              <div id="programType"></div>
-            </calcite-label>
-            <calcite-label>
-              Enrollment range
-              <calcite-slider id="attendance" range label-handles min-value="0" max-value="160000" min="0" max="160000"
-                step="100">
-              </calcite-slider>
+              Cuisine
+              <div id="cuisineType"></div>
             </calcite-label>
           </calcite-block>
-          <calcite-block heading="Housing" open>
-            <calcite-block-section id="housingSection" text="Offers on campus housing" toggle-display="switch">
+          <calcite-block heading="Walking Distance" open>
+            <calcite-block-section id="walkingDistanceSection" text="Calculate possible walking distance (km)" toggle-display="switch">
               <calcite-label>
-                Dormitory capacity
-                <calcite-slider id="housing" range label-handles min-value="0" max-value="20000" min="0" max="20000"
-                  step="100">
+                <!-- Walking distance (in kilometres) -->
+                <calcite-slider id="walkingDistanceSlider" label-handles max-value="5" max="5"
+                  step="1" value="0">
                 </calcite-slider>
               </calcite-label>
             </calcite-block-section>

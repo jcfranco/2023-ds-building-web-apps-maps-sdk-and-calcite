@@ -1,12 +1,17 @@
-import Map from "https://js.arcgis.com/4.22/@arcgis/core/Map.js";
-import WebMap from "https://js.arcgis.com/4.22/@arcgis/core/WebMap.js";
-import MapView from "https://js.arcgis.com/4.22/@arcgis/core/views/MapView.js";
-import TileLayer from "https://js.arcgis.com/4.22/@arcgis/core/layers/TileLayer.js";
-import Home from "https://js.arcgis.com/4.22/@arcgis/core/widgets/Home.js";
-import Legend from "https://js.arcgis.com/4.22/@arcgis/core/widgets/Legend.js";
-import Search from "https://js.arcgis.com/4.22/@arcgis/core/widgets/Search.js";
-import Expand from "https://js.arcgis.com/4.22/@arcgis/core/widgets/Expand.js";
-import { whenFalseOnce } from "https://js.arcgis.com/4.22/@arcgis/core/core/watchUtils.js";
+import Map from "https://js.arcgis.com/4.25/@arcgis/core/Map.js";
+import WebMap from "https://js.arcgis.com/4.25/@arcgis/core/WebMap.js";
+import MapView from "https://js.arcgis.com/4.25/@arcgis/core/views/MapView.js";
+import Home from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Home.js";
+import Legend from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Legend.js";
+import Search from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Search.js";
+import Expand from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Expand.js";
+import { whenFalseOnce } from "https://js.arcgis.com/4.25/@arcgis/core/core/watchUtils.js";
+
+import * as networkService from "https://js.arcgis.com/4.25/@arcgis/core/rest/networkService.js";
+import Graphic from "https://js.arcgis.com/4.25/@arcgis/core/Graphic.js";
+import ServiceAreaParameters from "https://js.arcgis.com/4.25/@arcgis/core/rest/support/ServiceAreaParameters.js";
+import FeatureSet from "https://js.arcgis.com/4.25/@arcgis/core/rest/support/FeatureSet.js";
+import * as serviceArea from "https://js.arcgis.com/4.25/@arcgis/core/rest/serviceArea.js";
 
 import { appConfig } from "./config.js";
 import { appState } from "./state.js";
@@ -14,11 +19,9 @@ import { appState } from "./state.js";
 async function init() {
   // query for elements
   const resultsNode = document.getElementById("results");
-  const attendanceNode = document.getElementById("attendance");
-  const housingSectionNode = document.getElementById("housingSection");
-  const housingNode = document.getElementById("housing");
-  const programTypeNode = document.getElementById("programType");
-  const schoolTypeNode = document.getElementById("schoolType");
+  const walkingDistanceSliderNode = document.getElementById("walkingDistanceSlider");
+  const cuisineTypeNode = document.getElementById("cuisineType");
+  const amenityTypeNode = document.getElementById("amenityType");
   const resultBlockNode = document.getElementById("resultBlock");
   const paginationNode = document.getElementById("pagination");
   const filtersNode = document.getElementById("filters");
@@ -27,34 +30,44 @@ async function init() {
   const themeNode = document.getElementById("themeToggle");
   const darkThemeCss = document.getElementById("jsapi-theme-dark");
   const lightThemeCss = document.getElementById("jsapi-theme-light");
-
+ 
+  /* Yelp */
+  const apiKeyYelp = ""
+  const urlYelpApiBusiness = "https://api.yelp.com/v3/businesses/" // businessId
+  
+  /* ArcGIS Location Services */
+  const apiKeyArcGIS = ""
+  const routeServiceUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/ServiceAreas/NAServer/ServiceArea_World";
+  let travelMode = null;
+  var loadComplete = false;
+  
   async function getAttachment(objectId, result) {
     const campusImageContainerNode = document.getElementById(
       "campusImageContainer"
     );
     campusImageContainerNode.innerHTML = "";
 
-    const attachments = await collegeLayer.queryAttachments({
-      objectIds: [objectId],
-      num: 1,
-    });
+    // const attachments = await amenityLayer.queryAttachments({
+    //   objectIds: [objectId],
+    //   num: 1,
+    // });
 
-    const attachmentGroup = attachments[objectId];
+    // const attachmentGroup = attachments[objectId];
 
-    if (attachmentGroup) {
-      const attachment = attachmentGroup[0];
-      const image = document.createElement("img");
-      image.src = `${attachment.url}/${attachment.name}`;
-      campusImageContainerNode.appendChild(image);
-      return;
-    }
+    // if (attachmentGroup) {
+    //   const attachment = attachmentGroup[0];
+    //   const image = document.createElement("img");
+    //   image.src = `${attachment.url}/${attachment.name}`;
+    //   campusImageContainerNode.appendChild(image);
+    //   return;
+    // }
 
     const container = document.createElement("div");
     container.id = "campusViewDiv";
     campusImageContainerNode.appendChild(container);
 
     const map = new Map({
-      basemap: "streets-vector",
+      basemap: "satellite",
     });
 
     const view = new MapView({
@@ -73,13 +86,13 @@ async function init() {
     appState.savedExtent = view.extent.clone();
     appState.activeItem = true;
 
-    await whenFalseOnce(collegeLayerView, "updating");
+    await whenFalseOnce(amenityLayerView, "updating");
 
-    const { features } = await collegeLayerView.queryFeatures({
+    const { features } = await amenityLayerView.queryFeatures({
       returnGeometry: true,
       outSpatialReference: view.spatialReference,
       objectIds: [objectId],
-      outFields: appConfig.collegeLayerOutFields,
+      outFields: appConfig.amenityLayerOutFields,
     });
 
     const result = features[0];
@@ -88,16 +101,15 @@ async function init() {
       return;
     }
 
+    // Query the Yelp API
+    const yelpBusinessInfo = await getBusinessInformationById(result.attributes['yelp'])
     filtersNode.hidden = true;
     const attributes = result.attributes;
     const detailPanelNode = document.getElementById("detail-panel");
     // a janky way to replace content in a single panel vs appending entire new one each time
     if (!detailPanelNode) {
       const panel = document.createElement("calcite-panel");
-      panel.heading = handleCasing(attributes["NAME"]);
-      panel.summary = `${handleCasing(attributes["CITY"])}, ${
-        attributes["STATE"]
-      }`;
+      panel.heading = handleCasing(attributes["name"]);
       panel.id = "detail-panel";
       panel.addEventListener("calcitePanelBackClick", async () => {
         if (appState.savedExtent) {
@@ -114,27 +126,33 @@ async function init() {
 
       const blockOne = document.createElement("calcite-block");
       blockOne.classList.add("calcite-block-contents");
-      blockOne.heading = "Institution overview";
+      blockOne.heading = "Amenity overview";
       blockOne.collapsible = true;
       blockOne.open = true;
 
       const blockTwo = document.createElement("calcite-block");
       blockTwo.classList.add("calcite-block-contents");
-      blockTwo.heading = "Student body";
+      blockTwo.heading = "Address";
       blockTwo.collapsible = true;
       blockTwo.open = true;
 
       const blockThree = document.createElement("calcite-block");
       blockThree.classList.add("calcite-block-contents");
-      blockThree.heading = "Housing";
-      blockThree.collapsible = true;
+      blockThree.heading = "Opening hours";
+      blockThree.collapsible = false;
       blockThree.open = true;
 
       const blockFour = document.createElement("calcite-block");
       blockFour.classList.add("calcite-block-contents");
       blockFour.heading = "Contact";
-      blockFour.collapsible = true;
+      blockFour.collapsible = false;
       blockFour.open = true;
+
+      const blockFive = document.createElement("calcite-block");
+      blockFive.classList.add("calcite-block-contents");
+      blockFive.heading = "Rating";
+      blockFive.collapsible = false;
+      blockFive.open = true;
 
       const campusImageNode = document.createElement("div");
       campusImageNode.id = "campusImageContainer";
@@ -142,7 +160,7 @@ async function init() {
 
       blockOne.appendChild(campusImageNode);
 
-      if (attributes["WEBSITE"]) {
+      if (attributes["website"]) {
         const itemWebsite = document.createElement("calcite-button");
         itemWebsite.id = "detail-website-link";
         itemWebsite.iconEnd = "launch";
@@ -150,118 +168,84 @@ async function init() {
         itemWebsite.scale = "l";
         itemWebsite.width = "full";
         itemWebsite.innerText = `Learn more`;
-        itemWebsite.href = `http://${attributes["WEBSITE"]}`;
+        itemWebsite.href = `${attributes["website"]}`;
         itemWebsite.rel = `noref noreferrer`;
         itemWebsite.target = `blank`;
         panel.appendChild(itemWebsite);
       }
 
-      const notice = document.createElement("calcite-notice");
-      notice.active = true;
-      notice.width = "full";
+      // const notice = document.createElement("calcite-notice");
+      // notice.active = true;
+      // notice.width = "full";
 
-      const message = document.createElement("span");
-      message.id = "overview-text";
-      message.slot = "message";
-      message.innerText = attributes["overview"]
-        ? attributes["overview"]
-        : "No overview available";
+      // const message = document.createElement("span");
+      // message.id = "overview-text";
+      // message.slot = "message";
+      // message.innerText = attributes["amenity"]
+      //   ? attributes["amenity"]
+      //   : "No overview available";
 
-      notice.appendChild(message);
-      blockOne.appendChild(notice);
+      // notice.appendChild(message);
+      // blockOne.appendChild(notice);
 
-      if (attributes["schoolType"]) {
+      if (attributes["amenity"]) {
         const label = document.createElement("calcite-label");
         label.layout = "inline-space-between";
-        label.innerText = "Institution Type";
+        label.innerText = "Amenity Type";
         const span = document.createElement("span");
-        span.id = "detail-type";
-        span.innerText = `${handleCasing(attributes["schoolType"])}`;
+        span.id = "amenity-type";
+        span.innerText = `${handleCasing(attributes["amenity"])}`;
         label.append(span);
         blockOne.appendChild(label);
       }
 
-      if (attributes["TOT_ENROLL"]) {
+      if (attributes["addr_street"]) {
         const label = document.createElement("calcite-label");
         label.layout = "inline-space-between";
-        label.innerText = "Total enrollment";
+        label.innerText = "Address";
         const span = document.createElement("span");
-        span.id = "detail-total";
-        span.innerText = `${parseInt(
-          attributes["TOT_ENROLL"]
-        ).toLocaleString()}`;
+        span.id = "detail_address";
+        span.innerText = `${attributes["addr_street"]} ${attributes["addr_housenumber"]}`
         label.append(span);
         blockTwo.appendChild(label);
+
+        const label1 = document.createElement("calcite-label");
+        label1.layout = "inline-space-between";
+        label1.innerText = "Postcode";
+        const span1 = document.createElement("span");
+        span1.id = "detail_postcode";
+        span1.innerText = `${attributes["addr_postcode"]}`
+        label1.append(span1);
+        blockTwo.appendChild(label1);        
+        
+        const label2 = document.createElement("calcite-label");
+        label2.layout = "inline-space-between";
+        label2.innerText = "City";
+        const span2 = document.createElement("span");
+        span2.id = "detail_city";
+        span2.innerText = `${attributes["addr_city"]}` ? `${attributes["addr_city"]}` : ''
+        label2.append(span2);
+        blockTwo.appendChild(label2);
       }
 
-      if (attributes["FT_ENROLL"]) {
-        const count =
-          attributes["FT_ENROLL"] === -999 ? "0" : attributes["FT_ENROLL"];
-        const label = document.createElement("calcite-label");
-        label.layout = "inline-space-between";
-        label.innerText = "Full time enrollment";
-        const span = document.createElement("span");
-        span.id = "detail-ft";
-        span.innerText = `${parseInt(count).toLocaleString()}`;
-        label.append(span);
-        blockTwo.appendChild(label);
+      if (attributes["opening_hours"]) {
+        const label3 = document.createElement("calcite-label");
+        label3.layout = "inline-space-between";
+        label3.innerText = "Opening hours";
+        const span3 = document.createElement("span");
+        span3.id = "detail_opening_hours";
+        span3.innerText = `${attributes['opening_hours']}` ? `${attributes['opening_hours']}` : 'Not available';
+        label3.append(span3);
+        blockThree.appendChild(label3);
       }
 
-      if (attributes["PT_ENROLL"]) {
-        const count =
-          attributes["PT_ENROLL"] === -999 ? "0" : attributes["PT_ENROLL"];
-        const label = document.createElement("calcite-label");
-        label.layout = "inline-space-between";
-        label.innerText = "Part time enrollment";
-        const span = document.createElement("span");
-        span.id = "detail-pt";
-        span.innerText = `${parseInt(count).toLocaleString()}`;
-        label.append(span);
-        blockTwo.appendChild(label);
-      }
-
-      const label = document.createElement("calcite-label");
-      label.layout = "inline-space-between";
-      label.innerText = "Offers housing";
-      const span = document.createElement("span");
-      span.id = "detail-housing";
-      span.innerText = `${
-        parseInt(attributes["DORM_CAP"]) !== -999 ? "Yes" : "No"
-      }`;
-      label.append(span);
-      blockThree.appendChild(label);
-
-      const labelCapacity = document.createElement("calcite-label");
-      labelCapacity.layout = "inline-space-between";
-      labelCapacity.innerText = "Dormitory capacity";
-      const spanCapacity = document.createElement("span");
-      spanCapacity.id = "detail-housing-capac";
-      spanCapacity.innerText = `${
-        parseInt(attributes["DORM_CAP"]) !== -999
-          ? parseInt(attributes["DORM_CAP"]).toLocaleString()
-          : "N/A"
-      }`;
-
-      labelCapacity.append(spanCapacity);
-      blockThree.appendChild(labelCapacity);
-
-      const labelAddress = document.createElement("calcite-label");
-      labelAddress.layout = "inline-space-between";
-      labelAddress.innerText = "Street Address";
-      const spanAddress = document.createElement("span");
-      spanAddress.id = "detail-address";
-      spanAddress.innerText = `${handleCasing(
-        attributes["ADDRESS"]
-      )}, ${handleCasing(attributes["CITY"])}, ${attributes["STATE"]}`;
-      labelAddress.append(spanAddress);
-      blockFour.appendChild(labelAddress);
 
       const labelWebsite = document.createElement("calcite-label");
       labelWebsite.layout = "inline-space-between";
       labelWebsite.innerText = "Website";
       const spanWebsite = document.createElement("span");
       spanWebsite.id = "detail-website";
-      spanWebsite.innerText = `${attributes["WEBSITE"]}`;
+      spanWebsite.innerText = `${attributes["website"]}`;
       labelWebsite.append(spanWebsite);
       blockFour.appendChild(labelWebsite);
 
@@ -270,9 +254,23 @@ async function init() {
       labelPhone.innerText = "Phone Number";
       const spanPhone = document.createElement("span");
       spanPhone.id = "detail-phone";
-      spanPhone.innerText = `${attributes["TELEPHONE"]}`;
+      spanPhone.innerText = attributes["phone"] ? `${attributes["phone"]}` : 'N/A';
       labelPhone.append(spanPhone);
       blockFour.appendChild(labelPhone);
+
+      const labelRating = document.createElement("calcite-label");
+      labelRating.layout = "inline-space-between";
+      
+      const yelpImg = document.createElement("img")
+      yelpImg.src = `./img/yelp_logos/yelp_logo.png`
+      yelpImg.height = "20"
+      labelRating.appendChild(yelpImg);
+      
+      const ratingImg = document.createElement("img")
+      ratingImg.src = `./img/yelp_stars/${yelpBusinessInfo['rating'] ? yelpBusinessInfo['rating'].toString().replace('.', '_') : '0' }.png`
+      labelRating.append(yelpImg)
+      labelRating.append(ratingImg)
+      blockFive.append(labelRating)
 
       panel.appendChild(div); // Add the div for the scrollbar
       /* Add the blocks into the div */
@@ -280,66 +278,52 @@ async function init() {
       div.appendChild(blockTwo);
       div.appendChild(blockThree);
       div.appendChild(blockFour);
+      div.appendChild(blockFive);
 
       flowNode.appendChild(panel);
     } else {
       /* replace existing element content */
-      detailPanelNode.heading = handleCasing(attributes["NAME"]);
-      detailPanelNode.summary = `${handleCasing(attributes["CITY"])}, ${
-        attributes["STATE"]
-      }`;
+      detailPanelNode.heading = handleCasing(attributes["name"]);
 
       document.getElementById(
         "detail-website-link"
-      ).href = `http://${attributes["WEBSITE"]}`;
+      ).href = `http://${attributes["website"]}`;
 
-      document.getElementById("overview-text").innerText = attributes[
-        "overview"
-      ]
-        ? attributes["overview"]
-        : "No overview available";
+      // document.getElementById("overview-text").innerText = attributes[
+      //   "overview"
+      // ]
+      //   ? attributes["overview"]
+      //   : "No overview available";
 
       document.getElementById(
-        "detail-type"
-      ).innerText = `${attributes["schoolType"]}`;
+        "amenity-type"
+      ).innerText = `${attributes["amenity"]}`;
 
-      document.getElementById("detail-total").innerText = `${parseInt(
-        attributes["TOT_ENROLL"]
-      ).toLocaleString()}`;
+      document.getElementById("detail_address").innerText = 
+        `${attributes["addr_street"]} ${attributes["addr_housenumber"]}`;
 
-      document.getElementById("detail-ft").innerText = `${parseInt(
-        attributes["FT_ENROLL"] === -999 ? "0" : attributes["FT_ENROLL"]
-      ).toLocaleString()}`;
+      document.getElementById("detail_postcode").innerText = 
+      `${attributes["addr_postcode"]}`;
 
-      document.getElementById("detail-pt").innerText = `${parseInt(
-        attributes["PT_ENROLL"] === -999 ? "0" : attributes["PT_ENROLL"]
-      ).toLocaleString()}`;
+      document.getElementById("detail_city").innerText = 
+      `${attributes["addr_city"]}`;
 
-      document.getElementById("detail-housing-capac").innerText = `${
-        parseInt(attributes["DORM_CAP"]) !== -999
-          ? parseInt(attributes["DORM_CAP"]).toLocaleString()
-          : "N/A"
-      }`;
-      document.getElementById("detail-housing").innerText = `${
-        parseInt(attributes["DORM_CAP"]) !== -999 ? "Yes" : "No"
-      }`;
-
-      document.getElementById("detail-address").innerText = `${handleCasing(
-        attributes["ADDRESS"]
-      )}, ${handleCasing(attributes["CITY"])}, ${attributes["STATE"]}`;
+      document.getElementById("detail_opening_hours").innerText = `${
+        attributes["opening_hours"] ? attributes["opening_hours"] : "N/A"
+      }`;      
 
       document.getElementById("detail-website").innerText = `${
-        attributes["WEBSITE"] ? attributes["WEBSITE"] : "N/A"
+        attributes["website"] ? attributes["website"] : "N/A"
       }`;
 
       document.getElementById("detail-phone").innerText = `${
-        attributes["TELEPHONE"] ? attributes["TELEPHONE"] : "N/A"
+        attributes["phone"] ? attributes["phone"] : "N/A"
       }`;
     }
     view.goTo(
       {
         center: [result.geometry.longitude, result.geometry.latitude],
-        zoom: 13,
+        zoom: 19,
       },
       { duration: 400 }
     );
@@ -348,12 +332,16 @@ async function init() {
   }
 
   // uh probably do this elsewhere
-  function handleCasing(string) {
+  function handleCasing(string = "") {
+    if(string){
     return string
       .toLowerCase()
       .split(" ")
       .map((word) => word.charAt(0).toUpperCase() + word.substring(1))
-      .join(" ");
+      .join(" ");}
+      else {
+        return ""
+      }
   }
 
   function combineSQLStatements(where, sql, operator = "AND") {
@@ -361,73 +349,48 @@ async function init() {
   }
 
   function whereClause() {
-    let where = "TOT_ENROLL > 100";
+    let where = "";
 
-    if (appState.attendance) {
-      where += combineSQLStatements(
-        where,
-        `TOT_ENROLL > ${appState.attendance.min}`
-      );
-      where += combineSQLStatements(
-        where,
-        `TOT_ENROLL < ${appState.attendance.max}`
-      );
-    }
-
-    if (appState.housing?.enabled) {
-      where += combineSQLStatements(where, `HOUSING=1`);
-      where += combineSQLStatements(
-        where,
-        `DORM_CAP > ${appState.housing.min}`
-      );
-      where += combineSQLStatements(
-        where,
-        `DORM_CAP < ${appState.housing.max}`
-      );
-    }
-
-    if (appState.activeProgramTypes.length > 0) {
-      let schoolWhere = "";
-      const values = appState.activeProgramTypes.flat();
+    if (appState.activeCuisineTypes.length > 0) {
+      let cuisineWhere = "";
+      const values = appState.activeCuisineTypes.flat();
       values.forEach(
         (value) =>
-          (schoolWhere += combineSQLStatements(
-            schoolWhere,
-            `HI_OFFER = ${value}`,
+          (cuisineWhere += combineSQLStatements(
+            cuisineWhere,
+            `cuisine = '${value}'`,
             "OR"
           ))
       );
-      where += combineSQLStatements(where, schoolWhere);
+      where += combineSQLStatements(where, cuisineWhere);
     }
 
-    const schoolTypeValue = schoolTypeNode.value;
-    if (schoolTypeValue && schoolTypeValue !== appConfig.defaultSchoolType) {
-      const values = schoolTypeValue.split(",");
-      let schoolWhere = "";
+    const amenityTypeValue = amenityTypeNode.value;
+    if (amenityTypeValue && amenityTypeValue !== appConfig.defaultAmenityType) {
+      const values = amenityTypeValue.split(",");
+      let amenityWhere = "";
       values.forEach(
         (value) =>
-          (schoolWhere += combineSQLStatements(
-            schoolWhere,
-            `NAICS_CODE = ${value}`,
+          (amenityWhere += combineSQLStatements(
+            amenityWhere,
+            `amenity = '${value}'`,
             "OR"
           ))
       );
-      where += combineSQLStatements(where, schoolWhere);
+      where += combineSQLStatements(where, amenityWhere);
     }
 
     return where;
   }
 
   function resetFilters() {
-    schoolTypeNode.value = appConfig.defaultSchoolType;
-    appState.attendance = { ...appConfig.attendance };
-    attendanceNode.minValue = appConfig.attendance.min;
-    attendanceNode.maxValue = appConfig.attendance.max;
-    appState.housing = { ...appConfig.housing };
-    housingSectionNode.open = appConfig.housing.enabled;
-    housingNode.minValue = appConfig.housing.min;
-    housingNode.maxValue = appConfig.housing.max;
-    appState.activeProgramTypes = [];
+    amenityTypeNode.value = appConfig.defaultAmenityType;
+    appState.walkingDistance = appConfig.walkingDistance;
+    appState.walkingDistanceGraphic = null
+    view.graphics.removeAll()
+    walkingDistanceSliderNode.maxValue = appConfig.walkingDistance;
+    walkingDistanceSliderNode.value = "0";
+    appState.activeCuisineTypes = [];
     [...document.querySelectorAll(`[data-type*="type"]`)].forEach(
       (item) => (item.color = "grey")
     );
@@ -436,15 +399,16 @@ async function init() {
   }
 
   function filterMap() {
-    if (!collegeLayerView) {
+    if (!amenityLayerView) {
       return;
     }
 
     const where = whereClause();
 
-    collegeLayerView.featureEffect = {
+    amenityLayerView.featureEffect = {
       filter: {
         where: where,
+        geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : undefined
       },
       excludedEffect: "grayscale(80%) opacity(30%)",
     };
@@ -469,51 +433,44 @@ async function init() {
   }
 
   function displayResult(result) {
-    const attributes = result.attributes;
-    const itemButton = document.createElement("button");
-    itemButton.className = "item-button";
-    const item = document.createElement("calcite-card");
-    itemButton.appendChild(item);
+    if(result.attributes['name']){
+      const attributes = result.attributes;
+      const itemButton = document.createElement("button");
+      itemButton.className = "item-button";
+      const item = document.createElement("calcite-card");
+      itemButton.appendChild(item);
 
-    if (parseInt(attributes["DORM_CAP"]) !== -999) {
-      const chip = document.createElement("calcite-chip");
-      chip.icon = "locator";
-      chip.slot = "footer-trailing";
-      chip.scale = "s";
-      chip.innerText = "Housing";
-      item.appendChild(chip);
+      const chipState = document.createElement("calcite-chip");
+      chipState.slot = "footer-leading";
+      chipState.scale = "s";
+      chipState.icon = "group";
+      chipState.innerText = attributes["amenity"];
+      item.appendChild(chipState);
+
+      const title = document.createElement("span");
+      title.slot = "title";
+      title.innerText = handleCasing(attributes["name"]);
+      item.appendChild(title);
+
+      if(attributes["cuisine"]) {
+        const summary = document.createElement("span");
+        summary.slot = "subtitle";
+        summary.innerText = handleCasing(attributes["cuisine"]);     
+        item.appendChild(summary);
+      }
+      itemButton.addEventListener("click", () =>
+        resultClickHandler(result.attributes[amenityLayer.objectIdField])
+      );
+
+      resultsNode.appendChild(itemButton);
     }
-
-    const chipState = document.createElement("calcite-chip");
-    chipState.slot = "footer-leading";
-    chipState.scale = "s";
-    chipState.icon = "group";
-    chipState.innerText = attributes["sizeRange"];
-    item.appendChild(chipState);
-
-    const title = document.createElement("span");
-    title.slot = "title";
-    title.innerText = handleCasing(attributes["NAME"]);
-
-    const summary = document.createElement("span");
-    summary.slot = "subtitle";
-    summary.innerText = handleCasing(attributes["NAICS_DESC"]);
-
-    item.appendChild(title);
-    item.appendChild(summary);
-
-    itemButton.addEventListener("click", () =>
-      resultClickHandler(result.attributes[collegeLayer.objectIdField])
-    );
-
-    resultsNode.appendChild(itemButton);
   }
 
   async function queryItems(start = 0) {
     resetNode.hidden = !appState.hasFilterChanges;
     resetNode.indicator = appState.hasFilterChanges;
 
-    if (!collegeLayerView) {
+    if (!amenityLayerView) {
       return;
     }
 
@@ -521,18 +478,19 @@ async function init() {
 
     const where = whereClause();
 
-    collegeLayerView.featureEffect = {
+    amenityLayerView.featureEffect = {
       filter: {
         where: where,
+        geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : undefined
       },
       excludedEffect: "grayscale(80%) opacity(30%)",
     };
 
-    await whenFalseOnce(collegeLayerView, "updating");
+    await whenFalseOnce(amenityLayerView, "updating");
 
     if (start === 0) {
-      appState.count = await collegeLayerView.queryFeatureCount({
-        geometry: view.extent.clone(),
+      appState.count = await amenityLayerView.queryFeatureCount({
+        geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
         where,
       });
       paginationNode.total = appState.count;
@@ -541,20 +499,20 @@ async function init() {
 
     paginationNode.hidden = appState.count <= appConfig.pageNum;
 
-    const results = await collegeLayerView.queryFeatures({
+    const results = await amenityLayerView.queryFeatures({
       start,
       num: appConfig.pageNum,
-      geometry: view.extent.clone(),
+      geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
       where: whereClause(),
       outFields: [
-        ...appConfig.collegeLayerOutFields,
-        collegeLayer.objectIdField,
+        ...appConfig.amenityLayerOutFields,
+        amenityLayer.objectIdField,
       ],
     });
 
     resultBlockNode.loading = false;
 
-    resultBlockNode.summary = `${appState.count} universities found within the map.`;
+    resultBlockNode.summary = `${appState.count} locations found within the map.`;
 
     resultsNode.innerHTML = "";
     if (results.features.length) {
@@ -578,14 +536,6 @@ async function init() {
       haloColor: "#D0D0D0",
     },
   });
-
-  /* Firefly tile layer for basemap use */
-  const fireflyBasemap = new TileLayer({
-    url: "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer"
-  });
-  map.add(fireflyBasemap);
-  // Turn off visibility for light mode
-  fireflyBasemap.visible = false;
 
   view.ui.add(
     new Home({
@@ -622,21 +572,23 @@ async function init() {
 
   await view.when();
 
-  const collegeLayer = view.map.layers.find(
-    (layer) => layer.url === appConfig.collegeLayerUrl
+
+  const amenityLayer = view.map.layers.find(
+    (layer) => layer.url === appConfig.amenityLayerUrl
   );
 
-  if (!collegeLayer) {
+  if (!amenityLayer) {
+    console.log('No layer was found')
     return;
   }
 
-  await collegeLayer.load();
+  await amenityLayer.load();
 
-  collegeLayer.outFields = [
-    ...appConfig.collegeLayerOutFields,
-    collegeLayer.objectIdField,
+  amenityLayer.outFields = [
+    ...appConfig.amenityLayerOutFields,
+    amenityLayer.objectIdField,
   ];
-  const collegeLayerView = await view.whenLayerView(collegeLayer);
+  const amenityLayerView = await view.whenLayerView(amenityLayer);
 
   // View clicking
   view.on("click", async (event) => {
@@ -644,7 +596,7 @@ async function init() {
 
     const results = response.results.filter(
       (result) =>
-        result.graphic.sourceLayer?.id === collegeLayer.id &&
+        result.graphic.sourceLayer?.id === amenityLayer.id &&
         !result.graphic.isAggregate
     );
 
@@ -653,79 +605,67 @@ async function init() {
     }
 
     const graphic = results[0].graphic;
-
-    resultClickHandler(graphic.attributes[collegeLayer.objectIdField]);
+    resultClickHandler(graphic.attributes[amenityLayer.objectIdField]);
   });
 
-  // Attendance
-  attendanceNode.min = appConfig.attendance.min;
-  attendanceNode.max = appConfig.attendance.max;
-  attendanceNode.minValue = appConfig.attendance.min;
-  attendanceNode.maxValue = appConfig.attendance.max;
-  attendanceNode.addEventListener("calciteSliderInput", (event) => {
-    appState.attendance.min = event.target.minValue;
-    appState.attendance.max = event.target.maxValue;
+  // Init networkService
+  // get the travel mode from the service
+  networkService.fetchServiceDescription(routeServiceUrl, apiKeyArcGIS).then((result) => {
+
+    travelMode = result.supportedTravelModes.find(
+      (travelMode) => travelMode.name === "Walking Distance"
+    );
+    console.log("load complete");
+
+    //if the travelmode is found set the loadComplete to true so the art can start
+    loadComplete = true;
+  });
+
+  // Walking Time
+  
+  walkingDistanceSliderNode.maxValue = appConfig.walkingTime;
+  walkingDistanceSliderNode.addEventListener("calciteSliderInput", (event) => {
+    appState.walkingDistance = event.target.value;
     appState.hasFilterChanges = true;
+  });
+  walkingDistanceSliderNode.addEventListener("calciteSliderChange", async(event) => {
+    appState.walkingDistance = event.target.value;
+    appState.hasFilterChanges = true;
+    await CreateDriveTimeAnalysis(Number.parseInt(event.target.value))
+
+    queryItems();
     filterMap();
   });
-  attendanceNode.addEventListener("calciteSliderChange", (event) => {
-    appState.attendance.min = event.target.minValue;
-    appState.attendance.max = event.target.maxValue;
-    appState.hasFilterChanges = true;
-    queryItems();
-  });
-  // Housing
-  housingSectionNode.open = appConfig.housing.enabled;
-  housingSectionNode.addEventListener("calciteBlockSectionToggle", (event) => {
-    appState.housing.enabled = event.target.open;
-    appState.hasFilterChanges = true;
-    queryItems();
-  });
-  housingNode.min = appConfig.housing.min;
-  housingNode.max = appConfig.housing.max;
-  housingNode.minValue = appConfig.housing.min;
-  housingNode.maxValue = appConfig.housing.max;
-  housingNode.addEventListener("calciteSliderInput", (event) => {
-    appState.housing.min = event.target.minValue;
-    appState.housing.max = event.target.maxValue;
-    appState.hasFilterChanges = true;
-    filterMap();
-  });
-  housingNode.addEventListener("calciteSliderChange", (event) => {
-    appState.housing.min = event.target.minValue;
-    appState.housing.max = event.target.maxValue;
-    appState.hasFilterChanges = true;
-    queryItems();
-  });
 
-  // School type select
-  for (const [key, value] of Object.entries(appConfig.schoolTypes)) {
+
+  // Amenity type select
+  for (const [key, value] of Object.entries(appConfig.AmenityTypes)) {
     const option = document.createElement("calcite-option");
-    option.value = value.join(",");
+    option.value = value;
     option.innerText = key;
-    schoolTypeNode.appendChild(option);
+    amenityTypeNode.appendChild(option);
   }
-  schoolTypeNode.addEventListener("calciteSelectChange", () => {
+  amenityTypeNode.addEventListener("calciteSelectChange", () => {
     appState.hasFilterChanges = true;
     queryItems();
   });
 
-  // Degree type chip select
-  for (const [key, value] of Object.entries(appConfig.programTypes)) {
+  // Amenity type chip select
+  for (const [key, value] of Object.entries(appConfig.cuisineTypes)) {
     const chip = document.createElement("calcite-chip");
     chip.tabIndex = 0;
     chip.dataset.type = "type";
     chip.value = value;
     chip.scale = "s";
-    chip.innerText = key;
+    chip.innerText = handleCasing(key);
     chip.addEventListener("click", (event) =>
       handleMultipleChipSelection(event, value)
     );
-    programTypeNode.appendChild(chip);
+    cuisineTypeNode.appendChild(chip);
   }
 
   function handleMultipleChipSelection(event, value) {
-    let items = appState.activeProgramTypes;
+    let items = appState.activeCuisineTypes;
     if (!items.includes(value)) {
       items.push(value);
       event.target.color = "blue";
@@ -733,10 +673,58 @@ async function init() {
       items = items.filter((item) => item !== value);
       event.target.color = "grey";
     }
-    appState.activeProgramTypes = items;
+    appState.activeCuisineTypes = items;
     appState.hasFilterChanges = true;
     queryItems();
   }
+
+  async function CreateDriveTimeAnalysis (walkingDistance) {
+      //only start the process if the load is complete (traveltimes have been fetched and layers have been created)
+      if (loadComplete) {
+        // create a graphic to show an the map and use as input 
+        const start = new Graphic({
+          geometry: view.center,
+          symbol: {
+            type: "simple-marker",
+            color: "white",
+            size: 8
+          }
+        });
+        // add the graphic to the view
+        view.graphics.removeAll();
+        view.graphics.add(start);
+
+        // create the service area parameters
+        const serviceAreaParameters = new ServiceAreaParameters({
+          apiKey: apiKeyArcGIS,
+          facilities: new FeatureSet({
+            features: [start]
+          }),
+          defaultBreaks: [walkingDistance],
+          travelMode: travelMode,
+          travelDirection: "from-facility",
+          outSpatialReference: view.spatialReference
+
+        });
+        // solve the service area
+        let serviceAreaSolveResult = await serviceArea.solve(routeServiceUrl, serviceAreaParameters)
+        console.log("serviceAreaSolveResult", serviceAreaSolveResult);
+
+        const serviceAreaPolygon = serviceAreaSolveResult.serviceAreaPolygons.features[0].geometry;
+        
+        const serviceAreaGraphic = new Graphic({
+          geometry: serviceAreaPolygon,
+          symbol: {
+            type: "simple-fill",
+            outline: { width: 1.5, color: [39, 175, 254, 1] },
+            color: [0, 0, 0, 0]
+          }
+        });
+        appState.walkingDistanceGraphic = serviceAreaGraphic
+        view.graphics.add(serviceAreaGraphic)
+
+      }
+    }
 
   // handle theme swap
   themeNode.addEventListener("click", () => handleThemeChange());
@@ -747,19 +735,35 @@ async function init() {
     darkThemeCss.disabled = !darkThemeCss.disabled;
     if (appState.theme === "dark") {
       // Clear the basemap, and use the firefly tile layer
-      map.basemap = null;
-      fireflyBasemap.visible = true;
+      map.basemap = 'satellite';
       document.body.className = "calcite-theme-dark";
       themeNode.icon = "moon";
     } else {
-      fireflyBasemap.visible = false; // Change firefly visibility for light mode
-      map.basemap = "gray-vector";
+      map.basemap = "topo-vector";
       document.body.className = "";
       themeNode.icon = "brightness";
     }
     setTimeout(() => {
       appState.activeItem = false;
     }, 1000);
+  }
+
+  async function getBusinessInformationById (businessId) {
+    try {
+      const businessInfoResult = await fetch(
+        `${urlYelpApiBusiness}${businessId}`, {
+        headers: {
+          Authorization: `Bearer ${apiKeyYelp}`
+        }
+      })
+      const businessInfoJson = await businessInfoResult.json();
+      return businessInfoJson
+    } catch (error) {
+      console.error('An error occured: ', error)  
+    }
+    return false
+     
+
   }
 
   // Pagination

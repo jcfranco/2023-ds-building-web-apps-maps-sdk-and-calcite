@@ -47,15 +47,15 @@ calcite-card {
 }
 
 body {
-  --calcite-ui-brand: purple;
-  --calcite-ui-brand-hover: rgb(94, 0, 94);
-  --calcite-ui-brand-press: rgb(87, 0, 87);
+  --calcite-ui-brand: #ff4d00;
+  --calcite-ui-brand-hover: #ff9a00;
+  --calcite-ui-brand-press: #ff9a00;
 }
 
 body.calcite-theme-dark {
-  --calcite-ui-brand: rgb(125, 0, 209);
-  --calcite-ui-brand-hover: rgb(121, 0, 205);
-  --calcite-ui-brand-press: rgb(141, 0, 225);
+  --calcite-ui-brand: #ff4d00;
+  --calcite-ui-brand-hover: #ff9a00;
+  --calcite-ui-brand-press: #ff9a00;
 }
 
 calcite-label span {
@@ -85,8 +85,12 @@ calcite-label span {
 }
 
 .calcite-theme-dark .temporary-header {
-  color: var(--calcite-ui-text-1);
+  color: var(--calcite-ui-brand);
   --calcite-ui-icon-color: var(--calcite-ui-text-1);
+}
+
+calcite-icon {
+  color: var(--calcite-ui-brand);
 }
 
 calcite-action-pad {
@@ -106,7 +110,7 @@ calcite-block calcite-notice {
   margin-block-end: 1rem;
 }
 /* styling for chip select */
-#programType calcite-chip {
+#cuisineType calcite-chip {
   margin-inline-end: 0.5rem;
   margin-block-start: 0.5rem;
   cursor: pointer;
@@ -115,7 +119,7 @@ calcite-block calcite-notice {
   --calcite-ui-info: var(--calcite-ui-brand);
 }
 
-#programType calcite-chip:focus {
+#cuisineType calcite-chip:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--calcite-ui-foreground-1),
     0 0 0 4px var(--calcite-ui-brand);
@@ -131,11 +135,20 @@ calcite-block calcite-notice {
   width: calc(100% - 0.75rem);
 }
 
-::-webkit-scrollbar {
-  width: 0.75rem;
+body::-webkit-scrollbar {
+  width: 0.65rem;
   height: 8px;
-  background-color: var(--calcite-ui-border-3);
+  background-color: rgb(233, 233, 233);
+}
+body::-webkit-scrollbar-thumb {
+  background: #ff4d00;
+}
+
+::-webkit-scrollbar {
+  width: 0.65rem;
+  height: 8px;
+  background-color: rgb(233, 233, 233);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--calcite-ui-brand);
+  background:#ff4d00;
 }

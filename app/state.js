@@ -3,8 +3,9 @@ export const appState = {
   activeItem: false,
   savedExtent: null,
   hasFilterChanges: false,
-  attendance: { min: 0, max: 160000 },
+  walkingTime: "0",
   housing: { enabled: false, min: 0, max: 20000 },
-  activeProgramTypes: [],
+  activeCuisineTypes: [],
   theme: "light",
+  walkingDistanceGraphic: null
 };
