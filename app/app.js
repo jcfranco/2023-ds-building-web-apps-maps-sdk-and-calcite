@@ -30,17 +30,17 @@ async function init() {
   const themeNode = document.getElementById("themeToggle");
   const darkThemeCss = document.getElementById("jsapi-theme-dark");
   const lightThemeCss = document.getElementById("jsapi-theme-light");
- 
+
   /* Yelp */
   const apiKeyYelp = ""
   const urlYelpApiBusiness = "https://api.yelp.com/v3/businesses/" // businessId
-  
+
   /* ArcGIS Location Services */
   const apiKeyArcGIS = ""
   const routeServiceUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/ServiceAreas/NAServer/ServiceArea_World";
   let travelMode = null;
   var loadComplete = false;
-  
+
   async function getAttachment(objectId, result) {
     const campusImageContainerNode = document.getElementById(
       "campusImageContainer"
@@ -216,8 +216,8 @@ async function init() {
         span1.id = "detail_postcode";
         span1.innerText = `${attributes["addr_postcode"]}`
         label1.append(span1);
-        blockTwo.appendChild(label1);        
-        
+        blockTwo.appendChild(label1);
+
         const label2 = document.createElement("calcite-label");
         label2.layout = "inline-space-between";
         label2.innerText = "City";
@@ -260,12 +260,12 @@ async function init() {
 
       const labelRating = document.createElement("calcite-label");
       labelRating.layout = "inline-space-between";
-      
+
       const yelpImg = document.createElement("img")
       yelpImg.src = `./img/yelp_logos/yelp_logo.png`
       yelpImg.height = "20"
       labelRating.appendChild(yelpImg);
-      
+
       const ratingImg = document.createElement("img")
       ratingImg.src = `./img/yelp_stars/${yelpBusinessInfo['rating'] ? yelpBusinessInfo['rating'].toString().replace('.', '_') : '0' }.png`
       labelRating.append(yelpImg)
@@ -299,18 +299,18 @@ async function init() {
         "amenity-type"
       ).innerText = `${attributes["amenity"]}`;
 
-      document.getElementById("detail_address").innerText = 
+      document.getElementById("detail_address").innerText =
         `${attributes["addr_street"]} ${attributes["addr_housenumber"]}`;
 
-      document.getElementById("detail_postcode").innerText = 
+      document.getElementById("detail_postcode").innerText =
       `${attributes["addr_postcode"]}`;
 
-      document.getElementById("detail_city").innerText = 
+      document.getElementById("detail_city").innerText =
       `${attributes["addr_city"]}`;
 
       document.getElementById("detail_opening_hours").innerText = `${
         attributes["opening_hours"] ? attributes["opening_hours"] : "N/A"
-      }`;      
+      }`;
 
       document.getElementById("detail-website").innerText = `${
         attributes["website"] ? attributes["website"] : "N/A"
@@ -455,7 +455,7 @@ async function init() {
       if(attributes["cuisine"]) {
         const summary = document.createElement("span");
         summary.slot = "subtitle";
-        summary.innerText = handleCasing(attributes["cuisine"]);     
+        summary.innerText = handleCasing(attributes["cuisine"]);
         item.appendChild(summary);
       }
       itemButton.addEventListener("click", () =>
@@ -622,7 +622,7 @@ async function init() {
   });
 
   // Walking Time
-  
+
   walkingDistanceSliderNode.maxValue = appConfig.walkingTime;
   walkingDistanceSliderNode.addEventListener("calciteSliderInput", (event) => {
     appState.walkingDistance = event.target.value;
@@ -681,7 +681,7 @@ async function init() {
   async function CreateDriveTimeAnalysis (walkingDistance) {
       //only start the process if the load is complete (traveltimes have been fetched and layers have been created)
       if (loadComplete) {
-        // create a graphic to show an the map and use as input 
+        // create a graphic to show an the map and use as input
         const start = new Graphic({
           geometry: view.center,
           symbol: {
@@ -711,7 +711,7 @@ async function init() {
         console.log("serviceAreaSolveResult", serviceAreaSolveResult);
 
         const serviceAreaPolygon = serviceAreaSolveResult.serviceAreaPolygons.features[0].geometry;
-        
+
         const serviceAreaGraphic = new Graphic({
           geometry: serviceAreaPolygon,
           symbol: {
@@ -736,7 +736,7 @@ async function init() {
     if (appState.theme === "dark") {
       // Clear the basemap, and use the firefly tile layer
       map.basemap = 'satellite';
-      document.body.className = "calcite-theme-dark";
+      document.body.className = "calcite-mode-dark";
       themeNode.icon = "moon";
     } else {
       map.basemap = "topo-vector";
@@ -759,10 +759,10 @@ async function init() {
       const businessInfoJson = await businessInfoResult.json();
       return businessInfoJson
     } catch (error) {
-      console.error('An error occured: ', error)  
+      console.error('An error occured: ', error)
     }
     return false
-     
+
 
   }
 
