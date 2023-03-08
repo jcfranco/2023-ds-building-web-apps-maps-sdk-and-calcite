@@ -1,6 +1,6 @@
-import Map from "https://js.arcgis.com/4.25/@arcgis/core/Map.js";
 import WebMap from "https://js.arcgis.com/4.25/@arcgis/core/WebMap.js";
 import MapView from "https://js.arcgis.com/4.25/@arcgis/core/views/MapView.js";
+import FeatureLayer from "https://js.arcgis.com/4.25/@arcgis/core/layers/FeatureLayer.js";
 import Home from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Home.js";
 import Legend from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Legend.js";
 import Search from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Search.js";
@@ -8,7 +8,7 @@ import Expand from "https://js.arcgis.com/4.25/@arcgis/core/widgets/Expand.js";
 import { whenFalseOnce } from "https://js.arcgis.com/4.25/@arcgis/core/core/watchUtils.js";
 
 import * as networkService from "https://js.arcgis.com/4.25/@arcgis/core/rest/networkService.js";
-import Graphic from "https://js.arcgis.com/4.25/@arcgis/core/Graphic.js";
+import Graphic from " https://js.arcgis.com/4.25/@arcgis/core/Graphic.js";
 import ServiceAreaParameters from "https://js.arcgis.com/4.25/@arcgis/core/rest/support/ServiceAreaParameters.js";
 import FeatureSet from "https://js.arcgis.com/4.25/@arcgis/core/rest/support/FeatureSet.js";
 import * as serviceArea from "https://js.arcgis.com/4.25/@arcgis/core/rest/serviceArea.js";
@@ -17,11 +17,12 @@ import { appConfig } from "./config.js";
 import { appState } from "./state.js";
 
 async function init() {
+  const allowedCodes = appConfig.allowedCodes;
   // query for elements
   const resultsNode = document.getElementById("results");
-  const walkingDistanceSliderNode = document.getElementById("walkingDistanceSlider");
-  const cuisineTypeNode = document.getElementById("cuisineType");
-  const amenityTypeNode = document.getElementById("amenityType");
+  const walkingDistanceSelectionNode = document.getElementById("walkingDistanceSelection");
+  const poiTypeSelectionNode = document.getElementById("poiTypeSelection");
+  const poiSelectionNode = document.getElementById("poiSelection");
   const resultBlockNode = document.getElementById("resultBlock");
   const paginationNode = document.getElementById("pagination");
   const filtersNode = document.getElementById("filters");
@@ -29,11 +30,6 @@ async function init() {
   const flowNode = document.getElementById("flow");
   const themeNode = document.getElementById("themeToggle");
   const darkThemeCss = document.getElementById("jsapi-theme-dark");
-  const lightThemeCss = document.getElementById("jsapi-theme-light");
-
-  /* Yelp */
-  const apiKeyYelp = ""
-  const urlYelpApiBusiness = "https://api.yelp.com/v3/businesses/" // businessId
 
   /* ArcGIS Location Services */
   const apiKeyArcGIS = ""
@@ -41,58 +37,19 @@ async function init() {
   let travelMode = null;
   var loadComplete = false;
 
-  async function getAttachment(objectId, result) {
-    const campusImageContainerNode = document.getElementById(
-      "campusImageContainer"
-    );
-    campusImageContainerNode.innerHTML = "";
-
-    // const attachments = await amenityLayer.queryAttachments({
-    //   objectIds: [objectId],
-    //   num: 1,
-    // });
-
-    // const attachmentGroup = attachments[objectId];
-
-    // if (attachmentGroup) {
-    //   const attachment = attachmentGroup[0];
-    //   const image = document.createElement("img");
-    //   image.src = `${attachment.url}/${attachment.name}`;
-    //   campusImageContainerNode.appendChild(image);
-    //   return;
-    // }
-
-    const container = document.createElement("div");
-    container.id = "campusViewDiv";
-    campusImageContainerNode.appendChild(container);
-
-    const map = new Map({
-      basemap: "satellite",
-    });
-
-    const view = new MapView({
-      container,
-      map,
-      center: [result.geometry.longitude, result.geometry.latitude],
-      zoom: 15,
-    });
-
-    view.ui.components = [];
-  }
-
   // display requested item data
   // handle flow destroying dom of added panel...
   async function resultClickHandler(objectId) {
     appState.savedExtent = view.extent.clone();
     appState.activeItem = true;
 
-    await whenFalseOnce(amenityLayerView, "updating");
+    await whenFalseOnce(lodgingLayerView, "updating");
 
-    const { features } = await amenityLayerView.queryFeatures({
+    const { features } = await lodgingLayerView.queryFeatures({
       returnGeometry: true,
       outSpatialReference: view.spatialReference,
       objectIds: [objectId],
-      outFields: appConfig.amenityLayerOutFields,
+      outFields: appConfig.lodgingLayerOutFields,
     });
 
     const result = features[0];
@@ -101,14 +58,13 @@ async function init() {
       return;
     }
 
-    // Query the Yelp API
-    const yelpBusinessInfo = await getBusinessInformationById(result.attributes['yelp'])
     filtersNode.hidden = true;
     const attributes = result.attributes;
+    // TODO: rename to flow-item
     const detailPanelNode = document.getElementById("detail-panel");
     // a janky way to replace content in a single panel vs appending entire new one each time
     if (!detailPanelNode) {
-      const panel = document.createElement("calcite-panel");
+      const panel = document.createElement("calcite-flow-item");
       panel.heading = handleCasing(attributes["name"]);
       panel.id = "detail-panel";
       panel.addEventListener("calcitePanelBackClick", async () => {
@@ -120,13 +76,15 @@ async function init() {
         filtersNode.hidden = false;
       });
 
+      // TODO: revisit all of this!
+
       // Contain the calcite-block elements for the scrollbar
       const div = document.createElement("div");
       div.classList.add("calcite-panel-contents");
 
       const blockOne = document.createElement("calcite-block");
       blockOne.classList.add("calcite-block-contents");
-      blockOne.heading = "Amenity overview";
+      blockOne.heading = "House overview";
       blockOne.collapsible = true;
       blockOne.open = true;
 
@@ -136,31 +94,72 @@ async function init() {
       blockTwo.collapsible = true;
       blockTwo.open = true;
 
+      const blockTwo = document.createElement("calcite-block");
+      blockTwo.classList.add("calcite-block-contents");
+      blockTwo.heading = "Amenities";
+      blockTwo.collapsible = true;
+      blockTwo.open = true;
+
       const blockThree = document.createElement("calcite-block");
       blockThree.classList.add("calcite-block-contents");
-      blockThree.heading = "Opening hours";
+      blockThree.heading = "Host";
       blockThree.collapsible = false;
       blockThree.open = true;
 
       const blockFour = document.createElement("calcite-block");
       blockFour.classList.add("calcite-block-contents");
-      blockFour.heading = "Contact";
+      blockFour.heading = "Rating";
       blockFour.collapsible = false;
       blockFour.open = true;
 
-      const blockFive = document.createElement("calcite-block");
-      blockFive.classList.add("calcite-block-contents");
-      blockFive.heading = "Rating";
-      blockFive.collapsible = false;
-      blockFive.open = true;
+      const listingImageNode = document.createElement("img");
+      listingImageNode.src = attributes["picture_url"];
+      listingImageNode.width = 300;
+      // listingImageNode.id = "campusImageContainer"; // drop ID & class
+      // listingImageNode.className = "campus-image-container";
 
-      const campusImageNode = document.createElement("div");
-      campusImageNode.id = "campusImageContainer";
-      campusImageNode.className = "campus-image-container";
+      function createLabel(text, valueOrNode, valueId) {
+        const label = document.createElement("calcite-label");
+        label.layout = "inline-space-between";
+        label.innerText = text;
 
-      blockOne.appendChild(campusImageNode);
+        const content = document.createElement("span");
+        content.id = valueId;
 
-      if (attributes["website"]) {
+        if (valueOrNode instanceof HTMLElement) {
+          content.append(valueOrNode);
+        } else {
+          content.innerHTML = valueOrNode || 'N/A';
+        }
+
+        label.append(content);
+
+        return label;
+      }
+
+      function createYesNoIcon(value) {
+        const icon = document.createElement("calcite-icon");
+        icon.icon = value === "f" ? "x-circle" : "check-circle";
+        return icon;
+      }
+
+      const descriptionText = document.createElement("p");
+      descriptionText.innerHTML = attributes["description"];
+      descriptionText.id = "detail-description";
+
+      blockOne.append(listingImageNode);
+      blockOne.append(descriptionText);
+      blockOne.append(createLabel("Price", attributes["price"], "detail-price"));
+      blockOne.append(createLabel("Property type", attributes["property_type"], "detail-property-type"));
+      blockOne.append(createLabel("Room type", attributes["room_type"], "detail-room-type"));
+      blockOne.append(createLabel("Accommodates", attributes["accommodates"], "detail-accommodates"));
+      blockOne.append(createLabel("Bedrooms", attributes["bedrooms"], "detail-bedrooms"));
+      blockOne.append(createLabel("Beds", attributes["beds"], "detail-beds"));
+      blockOne.append(createLabel("Bathrooms", attributes["bathrooms"], "detail-bathrooms"));
+      blockOne.append(createLabel("Bathrooms Misc", attributes["bathrooms_text"], "detail-bathrooms-misc"));
+      blockOne.append(createLabel("Available", createYesNoIcon(attributes["has_availability"]), "detail-available"));
+
+      if (attributes["listing_url"]) {
         const itemWebsite = document.createElement("calcite-button");
         itemWebsite.id = "detail-website-link";
         itemWebsite.iconEnd = "launch";
@@ -168,119 +167,72 @@ async function init() {
         itemWebsite.scale = "l";
         itemWebsite.width = "full";
         itemWebsite.innerText = `Learn more`;
-        itemWebsite.href = `${attributes["website"]}`;
+        itemWebsite.href = `${attributes["listing_url"]}`;
         itemWebsite.rel = `noref noreferrer`;
         itemWebsite.target = `blank`;
-        panel.appendChild(itemWebsite);
+        panel.append(itemWebsite);
       }
 
-      // const notice = document.createElement("calcite-notice");
-      // notice.active = true;
-      // notice.width = "full";
+      const amenitiesText = attributes["amenities"];
+      if (amenitiesText) {
+        const amenities = JSON.parse(amenitiesText);
+        const amenitiesList = document.createElement("calcite-list");
 
-      // const message = document.createElement("span");
-      // message.id = "overview-text";
-      // message.slot = "message";
-      // message.innerText = attributes["amenity"]
-      //   ? attributes["amenity"]
-      //   : "No overview available";
+        amenitiesList.append(...amenities.map((amenity) => {
+          const amenityItem = document.createElement("calcite-list-item");
+          amenityItem.label = amenity;
+          return amenityItem;
+        }));
 
-      // notice.appendChild(message);
-      // blockOne.appendChild(notice);
+        const amenitiesScroller = document.createElement("div");
+        amenitiesScroller.classList.add("scroller");
+        amenitiesScroller.append(amenitiesList);
 
-      if (attributes["amenity"]) {
-        const label = document.createElement("calcite-label");
-        label.layout = "inline-space-between";
-        label.innerText = "Amenity Type";
-        const span = document.createElement("span");
-        span.id = "amenity-type";
-        span.innerText = `${handleCasing(attributes["amenity"])}`;
-        label.append(span);
-        blockOne.appendChild(label);
+        blockTwo.append(amenitiesScroller);
       }
 
-      if (attributes["addr_street"]) {
-        const label = document.createElement("calcite-label");
-        label.layout = "inline-space-between";
-        label.innerText = "Address";
-        const span = document.createElement("span");
-        span.id = "detail_address";
-        span.innerText = `${attributes["addr_street"]} ${attributes["addr_housenumber"]}`
-        label.append(span);
-        blockTwo.appendChild(label);
+      // TODO: drop
+      // const labelWebsite = createLabel("Website", attributes["website"], "detail-website");
 
-        const label1 = document.createElement("calcite-label");
-        label1.layout = "inline-space-between";
-        label1.innerText = "Postcode";
-        const span1 = document.createElement("span");
-        span1.id = "detail_postcode";
-        span1.innerText = `${attributes["addr_postcode"]}`
-        label1.append(span1);
-        blockTwo.appendChild(label1);
+      const hostName = createLabel("Name", attributes["host_name"], "detail-host-name");
+      const hostAbout = createLabel("About", attributes["host_about"], "detail-host-about");
 
-        const label2 = document.createElement("calcite-label");
-        label2.layout = "inline-space-between";
-        label2.innerText = "City";
-        const span2 = document.createElement("span");
-        span2.id = "detail_city";
-        span2.innerText = `${attributes["addr_city"]}` ? `${attributes["addr_city"]}` : ''
-        label2.append(span2);
-        blockTwo.appendChild(label2);
-      }
+      const avatar = document.createElement("calcite-avatar");
+      avatar.id = "detail-host-avatar";
+      avatar.thumbnail = attributes["host_thumbnail_url"];
 
-      if (attributes["opening_hours"]) {
-        const label3 = document.createElement("calcite-label");
-        label3.layout = "inline-space-between";
-        label3.innerText = "Opening hours";
-        const span3 = document.createElement("span");
-        span3.id = "detail_opening_hours";
-        span3.innerText = `${attributes['opening_hours']}` ? `${attributes['opening_hours']}` : 'Not available';
-        label3.append(span3);
-        blockThree.appendChild(label3);
-      }
+      const hostAvatar = createLabel("About", avatar);
+      const hostLocation = createLabel("Location", attributes["host_location"], "detail-host-location");
+      const hostVerified = createLabel("Verified", createYesNoIcon(attributes["host_verified"]), "detail-host-verified");
+      const hostIsSuper = createLabel("Is superhost", createYesNoIcon(attributes["host_is_superhost"]), "detail-host-is-super");
 
-
-      const labelWebsite = document.createElement("calcite-label");
-      labelWebsite.layout = "inline-space-between";
-      labelWebsite.innerText = "Website";
-      const spanWebsite = document.createElement("span");
-      spanWebsite.id = "detail-website";
-      spanWebsite.innerText = `${attributes["website"]}`;
-      labelWebsite.append(spanWebsite);
-      blockFour.appendChild(labelWebsite);
-
-      const labelPhone = document.createElement("calcite-label");
-      labelPhone.layout = "inline-space-between";
-      labelPhone.innerText = "Phone Number";
-      const spanPhone = document.createElement("span");
-      spanPhone.id = "detail-phone";
-      spanPhone.innerText = attributes["phone"] ? `${attributes["phone"]}` : 'N/A';
-      labelPhone.append(spanPhone);
-      blockFour.appendChild(labelPhone);
+      const hostUrl = document.createElement("calcite-link");
+      hostUrl.id = "detail-host-url";
+      hostUrl.href = attributes["host_url"];
+      const hostLink = createLabel("Learn more", hostUrl);
+      blockThree.append(hostName, hostAbout, hostAvatar, hostLocation, hostVerified, hostIsSuper, hostLink);
 
       const labelRating = document.createElement("calcite-label");
       labelRating.layout = "inline-space-between";
 
-      const yelpImg = document.createElement("img")
-      yelpImg.src = `./img/yelp_logos/yelp_logo.png`
-      yelpImg.height = "20"
-      labelRating.appendChild(yelpImg);
+      const rating = document.createElement("calcite-rating")
+      rating.id = "detail-rating";
+      rating.readOnly = true;
+      rating.count = attributes['number_of_reviews'];
+      rating.showChip = true;
+      rating.value = attributes['review_scores_rating'];
 
-      const ratingImg = document.createElement("img")
-      ratingImg.src = `./img/yelp_stars/${yelpBusinessInfo['rating'] ? yelpBusinessInfo['rating'].toString().replace('.', '_') : '0' }.png`
-      labelRating.append(yelpImg)
-      labelRating.append(ratingImg)
-      blockFive.append(labelRating)
+      labelRating.append(rating)
+      blockFour.append(labelRating)
 
-      panel.appendChild(div); // Add the div for the scrollbar
-      /* Add the blocks into the div */
-      div.appendChild(blockOne);
-      div.appendChild(blockTwo);
-      div.appendChild(blockThree);
-      div.appendChild(blockFour);
-      div.appendChild(blockFive);
+      panel.append(div);
 
-      flowNode.appendChild(panel);
+      div.append(blockOne);
+      div.append(blockTwo);
+      div.append(blockThree);
+      div.append(blockFour);
+
+      flowNode.append(panel);
     } else {
       /* replace existing element content */
       detailPanelNode.heading = handleCasing(attributes["name"]);
@@ -288,12 +240,6 @@ async function init() {
       document.getElementById(
         "detail-website-link"
       ).href = `http://${attributes["website"]}`;
-
-      // document.getElementById("overview-text").innerText = attributes[
-      //   "overview"
-      // ]
-      //   ? attributes["overview"]
-      //   : "No overview available";
 
       document.getElementById(
         "amenity-type"
@@ -308,6 +254,7 @@ async function init() {
       document.getElementById("detail_city").innerText =
       `${attributes["addr_city"]}`;
 
+      // TODO: change to amenities
       document.getElementById("detail_opening_hours").innerText = `${
         attributes["opening_hours"] ? attributes["opening_hours"] : "N/A"
       }`;
@@ -327,8 +274,6 @@ async function init() {
       },
       { duration: 400 }
     );
-
-    getAttachment(objectId, result);
   }
 
   // uh probably do this elsewhere
@@ -365,8 +310,8 @@ async function init() {
       where += combineSQLStatements(where, cuisineWhere);
     }
 
-    const amenityTypeValue = amenityTypeNode.value;
-    if (amenityTypeValue && amenityTypeValue !== appConfig.defaultAmenityType) {
+    const amenityTypeValue = poiTypeSelectionNode.value;
+    if (amenityTypeValue && amenityTypeValue !== appConfig.defaultType) {
       const values = amenityTypeValue.split(",");
       let amenityWhere = "";
       values.forEach(
@@ -384,12 +329,12 @@ async function init() {
   }
 
   function resetFilters() {
-    amenityTypeNode.value = appConfig.defaultAmenityType;
+    poiTypeSelectionNode.value = appConfig.defaultType;
     appState.walkingDistance = appConfig.walkingDistance;
     appState.walkingDistanceGraphic = null
     view.graphics.removeAll()
-    walkingDistanceSliderNode.maxValue = appConfig.walkingDistance;
-    walkingDistanceSliderNode.value = "0";
+    walkingDistanceSelectionNode.maxValue = appConfig.walkingDistance;
+    walkingDistanceSelectionNode.value = "0";
     appState.activeCuisineTypes = [];
     [...document.querySelectorAll(`[data-type*="type"]`)].forEach(
       (item) => (item.color = "grey")
@@ -399,15 +344,14 @@ async function init() {
   }
 
   function filterMap() {
-    if (!amenityLayerView) {
+    if (!lodgingLayerView) {
       return;
     }
 
     const where = whereClause();
 
-    amenityLayerView.featureEffect = {
+    lodgingLayerView.featureEffect = {
       filter: {
-        where: where,
         geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : undefined
       },
       excludedEffect: "grayscale(80%) opacity(30%)",
@@ -427,9 +371,9 @@ async function init() {
     title.slot = "title";
     title.innerText = "No results in view";
 
-    notice.appendChild(title);
-    notice.appendChild(message);
-    resultsNode.appendChild(notice);
+    notice.append(title);
+    notice.append(message);
+    resultsNode.append(notice);
   }
 
   function displayResult(result) {
@@ -438,31 +382,31 @@ async function init() {
       const itemButton = document.createElement("button");
       itemButton.className = "item-button";
       const item = document.createElement("calcite-card");
-      itemButton.appendChild(item);
+      itemButton.append(item);
 
       const chipState = document.createElement("calcite-chip");
       chipState.slot = "footer-leading";
       chipState.scale = "s";
       chipState.icon = "group";
       chipState.innerText = attributes["amenity"];
-      item.appendChild(chipState);
+      item.append(chipState);
 
       const title = document.createElement("span");
       title.slot = "title";
       title.innerText = handleCasing(attributes["name"]);
-      item.appendChild(title);
+      item.append(title);
 
       if(attributes["cuisine"]) {
         const summary = document.createElement("span");
         summary.slot = "subtitle";
         summary.innerText = handleCasing(attributes["cuisine"]);
-        item.appendChild(summary);
+        item.append(summary);
       }
       itemButton.addEventListener("click", () =>
-        resultClickHandler(result.attributes[amenityLayer.objectIdField])
+        resultClickHandler(result.attributes[lodgingLayer.objectIdField])
       );
 
-      resultsNode.appendChild(itemButton);
+      resultsNode.append(itemButton);
     }
   }
 
@@ -470,7 +414,7 @@ async function init() {
     resetNode.hidden = !appState.hasFilterChanges;
     resetNode.indicator = appState.hasFilterChanges;
 
-    if (!amenityLayerView) {
+    if (!lodgingLayerView) {
       return;
     }
 
@@ -478,40 +422,40 @@ async function init() {
 
     const where = whereClause();
 
-    amenityLayerView.featureEffect = {
+    lodgingLayerView.featureEffect = {
       filter: {
-        where: where,
+        where,
         geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : undefined
       },
       excludedEffect: "grayscale(80%) opacity(30%)",
     };
 
-    await whenFalseOnce(amenityLayerView, "updating");
+    await whenFalseOnce(lodgingLayerView, "updating");
 
     if (start === 0) {
-      appState.count = await amenityLayerView.queryFeatureCount({
+      appState.count = await lodgingLayerView.queryFeatureCount({
         geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
         where,
       });
-      paginationNode.total = appState.count;
-      paginationNode.start = 1;
+      paginationNode.totalItems = appState.count;
+      paginationNode.startItem = 1;
     }
 
     paginationNode.hidden = appState.count <= appConfig.pageNum;
 
-    const results = await amenityLayerView.queryFeatures({
+    const results = await lodgingLayerView.queryFeatures({
       start,
       num: appConfig.pageNum,
       geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
-      where: whereClause(),
+      where,
       outFields: [
-        ...appConfig.amenityLayerOutFields,
-        amenityLayer.objectIdField,
+        // TODO: trim out fields required for demo
+        ...appConfig.lodgingLayerOutFields,
+        lodgingLayer.objectIdField,
       ],
     });
 
     resultBlockNode.loading = false;
-
     resultBlockNode.summary = `${appState.count} locations found within the map.`;
 
     resultsNode.innerHTML = "";
@@ -572,23 +516,63 @@ async function init() {
 
   await view.when();
 
-
-  const amenityLayer = view.map.layers.find(
-    (layer) => layer.url === appConfig.amenityLayerUrl
+  const lodgingLayer = view.map.layers.find(
+    (layer) => layer.url === appConfig.lodgingLayerUrl
   );
 
-  if (!amenityLayer) {
+  if (!lodgingLayer) {
     console.log('No layer was found')
     return;
   }
 
-  await amenityLayer.load();
+  const poiLayer = new FeatureLayer("https://services1.arcgis.com/1vIhDJwtG5eNmiqX/arcgis/rest/services/Places/FeatureServer/0");
 
-  amenityLayer.outFields = [
-    ...appConfig.amenityLayerOutFields,
-    amenityLayer.objectIdField,
+  await lodgingLayer.load();
+  await poiLayer.load();
+
+  const poiTypeOptions = poiLayer.fields.find(field => field.name === "TYPE").domain.codedValues;
+
+  poiTypeSelectionNode.append(
+    ...(
+      poiTypeOptions.filter(({ code }) => allowedCodes.includes(code))
+      .sort(({ name: name1 }, { name: name2 }) => name1.localeCompare(name2))
+      .map(({ name, code }) => {
+        const option = document.createElement("calcite-option");
+        option.label = name;
+        option.value = code;
+        return option;
+      })
+    )
+  );
+
+  filtersNode.loading = true;
+
+  const pois = await poiLayer.queryFeatures({
+    where: allowedCodes.map(code => `TYPE = '${code}'`).join(" OR "),
+    geometry: view.extent.clone(),
+    outFields: ["NAME", "OBJECTID"]
+  });
+
+  poiSelectionNode.filterEnabled = false;
+
+  poiSelectionNode.replaceChildren(
+    ...pois.features.map(poi => {
+      const item = document.createElement("calcite-list-item");
+      item.label = poi.attributes.NAME;
+      item.value = poi.attributes.OBJECTID;
+      return item;
+    })
+  );
+
+  poiSelectionNode.filterEnabled = true;
+  filtersNode.loading = false;
+
+
+  lodgingLayer.outFields = [
+    ...appConfig.lodgingLayerOutFields,
+    lodgingLayer.objectIdField,
   ];
-  const amenityLayerView = await view.whenLayerView(amenityLayer);
+  const lodgingLayerView = await view.whenLayerView(lodgingLayer);
 
   // View clicking
   view.on("click", async (event) => {
@@ -596,7 +580,7 @@ async function init() {
 
     const results = response.results.filter(
       (result) =>
-        result.graphic.sourceLayer?.id === amenityLayer.id &&
+        result.graphic.sourceLayer?.id === lodgingLayer.id &&
         !result.graphic.isAggregate
     );
 
@@ -605,7 +589,7 @@ async function init() {
     }
 
     const graphic = results[0].graphic;
-    resultClickHandler(graphic.attributes[amenityLayer.objectIdField]);
+    resultClickHandler(graphic.attributes[lodgingLayer.objectIdField]);
   });
 
   // Init networkService
@@ -615,75 +599,51 @@ async function init() {
     travelMode = result.supportedTravelModes.find(
       (travelMode) => travelMode.name === "Walking Distance"
     );
-    console.log("load complete");
 
     //if the travelmode is found set the loadComplete to true so the art can start
     loadComplete = true;
   });
 
+  poiSelectionNode.addEventListener("calciteListItemSelect", async (event) => {
+    appState.activePoi = (await poiLayer.queryFeatures({
+      objectIds: [event.target.value],
+      returnGeometry: true
+    })).features[0];
+
+    updateWalkingTimeResults();
+  });
+
   // Walking Time
 
-  walkingDistanceSliderNode.maxValue = appConfig.walkingTime;
-  walkingDistanceSliderNode.addEventListener("calciteSliderInput", (event) => {
+  walkingDistanceSelectionNode.maxValue = appConfig.walkingTime;
+  walkingDistanceSelectionNode.addEventListener("calciteSliderInput", (event) => {
     appState.walkingDistance = event.target.value;
     appState.hasFilterChanges = true;
   });
-  walkingDistanceSliderNode.addEventListener("calciteSliderChange", async(event) => {
-    appState.walkingDistance = event.target.value;
-    appState.hasFilterChanges = true;
-    await CreateDriveTimeAnalysis(Number.parseInt(event.target.value))
 
+  async function updateWalkingTimeResults() {
+    await CreateDriveTimeAnalysis(appState.walkingDistance, appState.activePoi.geometry);
     queryItems();
     filterMap();
+  }
+
+  walkingDistanceSelectionNode.addEventListener("calciteSliderChange", async (event) => {
+    appState.walkingDistance = Number(event.target.value);
+    appState.hasFilterChanges = true;
+    updateWalkingTimeResults();
   });
 
-
-  // Amenity type select
-  for (const [key, value] of Object.entries(appConfig.AmenityTypes)) {
-    const option = document.createElement("calcite-option");
-    option.value = value;
-    option.innerText = key;
-    amenityTypeNode.appendChild(option);
-  }
-  amenityTypeNode.addEventListener("calciteSelectChange", () => {
+  poiTypeSelectionNode.addEventListener("calciteSelectChange", () => {
     appState.hasFilterChanges = true;
     queryItems();
   });
 
-  // Amenity type chip select
-  for (const [key, value] of Object.entries(appConfig.cuisineTypes)) {
-    const chip = document.createElement("calcite-chip");
-    chip.tabIndex = 0;
-    chip.dataset.type = "type";
-    chip.value = value;
-    chip.scale = "s";
-    chip.innerText = handleCasing(key);
-    chip.addEventListener("click", (event) =>
-      handleMultipleChipSelection(event, value)
-    );
-    cuisineTypeNode.appendChild(chip);
-  }
-
-  function handleMultipleChipSelection(event, value) {
-    let items = appState.activeCuisineTypes;
-    if (!items.includes(value)) {
-      items.push(value);
-      event.target.color = "blue";
-    } else {
-      items = items.filter((item) => item !== value);
-      event.target.color = "grey";
-    }
-    appState.activeCuisineTypes = items;
-    appState.hasFilterChanges = true;
-    queryItems();
-  }
-
-  async function CreateDriveTimeAnalysis (walkingDistance) {
+  async function CreateDriveTimeAnalysis (walkingDistance, location) {
       //only start the process if the load is complete (traveltimes have been fetched and layers have been created)
       if (loadComplete) {
         // create a graphic to show an the map and use as input
         const start = new Graphic({
-          geometry: view.center,
+          geometry: location,
           symbol: {
             type: "simple-marker",
             color: "white",
@@ -751,7 +711,7 @@ async function init() {
   async function getBusinessInformationById (businessId) {
     try {
       const businessInfoResult = await fetch(
-        `${urlYelpApiBusiness}${businessId}`, {
+        `${poiLayer}${businessId}`, {
         headers: {
           Authorization: `Bearer ${apiKeyYelp}`
         }
@@ -767,10 +727,10 @@ async function init() {
   }
 
   // Pagination
-  paginationNode.num = appConfig.pageNum;
-  paginationNode.start = 1;
+  paginationNode.pageSize = appConfig.pageNum;
+  paginationNode.startItem = 1;
   paginationNode.addEventListener("calcitePaginationChange", (event) => {
-    queryItems(event.detail.start - 1);
+    queryItems(event.target.startItem - 1);
   });
 
   // Reset button

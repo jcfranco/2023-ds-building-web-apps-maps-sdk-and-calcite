@@ -47,15 +47,15 @@ calcite-card {
 }
 
 body {
-  --calcite-ui-brand: #ff4d00;
-  --calcite-ui-brand-hover: #ff9a00;
-  --calcite-ui-brand-press: #ff9a00;
+  --calcite-ui-brand: #ff5a60;
+  --calcite-ui-brand-hover: #ff4046;
+  --calcite-ui-brand-press: #ff4046;
 }
 
 body.calcite-theme-dark {
-  --calcite-ui-brand: #ff4d00;
-  --calcite-ui-brand-hover: #ff9a00;
-  --calcite-ui-brand-press: #ff9a00;
+  --calcite-ui-brand: #ff5a60;
+  --calcite-ui-brand-hover: #ff4046;
+  --calcite-ui-brand-press: #ff4046;
 }
 
 calcite-label span {
@@ -138,17 +138,22 @@ calcite-block calcite-notice {
 body::-webkit-scrollbar {
   width: 0.65rem;
   height: 8px;
-  background-color: rgb(233, 233, 233);
+  background-color: var(--calcite-ui-background);
 }
 body::-webkit-scrollbar-thumb {
-  background: #ff4d00;
+  background: var(--calcite-ui-brand);
 }
 
 ::-webkit-scrollbar {
   width: 0.65rem;
   height: 8px;
-  background-color: rgb(233, 233, 233);
+  background-color: var(--calcite-ui-background);
 }
 ::-webkit-scrollbar-thumb {
-  background:#ff4d00;
+  background: var(--calcite-ui-brand);
+}
+
+.scroller {
+  max-height: 200px;
+  overflow-y: auto;
 }

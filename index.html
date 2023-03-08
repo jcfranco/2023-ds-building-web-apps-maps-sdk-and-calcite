@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Food & Drinks Finder</title>
+  <title>Smart Lodging</title>
   <!-- Calcite-->
   <link rel="stylesheet" type="text/css" href="https://js.arcgis.com/calcite-components/1.0.8/calcite.css" />
   <script type="module" src="https://js.arcgis.com/calcite-components/1.0.8/calcite.esm.js"></script>
@@ -23,20 +23,20 @@
 <body>
   <calcite-shell class="calcite-presentation" content-behind id="shell">
     <div class="temporary-header" slot="header">
-      <calcite-icon icon="walking" scale="l"></calcite-icon>
-      Food & Drinks
+      <calcite-icon icon="personal-homepage" scale="l"></calcite-icon>
+      Smart Lodging
       <calcite-action-pad layout="horizontal" expand-disabled>
         <calcite-action id="themeToggle" text="Light" icon="brightness"></calcite-action>
       </calcite-action-pad>
     </div>
     <calcite-shell-panel slot="panel-start" id="custom-panel">
       <calcite-flow id="flow">
-        <calcite-panel heading="Results" id="resultBlock" loading>
+        <calcite-flow-item heading="Results" id="resultBlock" loading>
           <calcite-pagination id="pagination" slot="footer"></calcite-pagination>
           <div class="calcite-panel-contents">
             <calcite-block open id="results"></calcite-block>
           </div>
-        </calcite-panel>
+        </calcite-flow-item>
       </calcite-flow>
     </calcite-shell-panel>
     <calcite-shell-center-row height-scale="l">
@@ -192,38 +192,38 @@ const attributes = result.attributes;
 const itemButton = document.createElement("button");
 itemButton.className = "item-button";
 const item = document.createElement("calcite-card");
-itemButton.appendChild(item);
+itemButton.append(item);
 
 if(result.attributes['name']){
 const attributes = result.attributes;
 const itemButton = document.createElement("button");
 itemButton.className = "item-button";
 const item = document.createElement("calcite-card");
-itemButton.appendChild(item);
+itemButton.append(item);
 
 const chipState = document.createElement("calcite-chip");
 chipState.slot = "footer-leading";
 chipState.scale = "s";
 chipState.icon = "group";
 chipState.innerText = attributes["amenity"];
-item.appendChild(chipState);
+item.append(chipState);
 
 const title = document.createElement("span");
 title.slot = "title";
 title.innerText = handleCasing(attributes["name"]);
-item.appendChild(title);
+item.append(title);
 
 if(attributes["cuisine"]) {
   const summary = document.createElement("span");
   summary.slot = "subtitle";
   summary.innerText = handleCasing(attributes["cuisine"]);
-  item.appendChild(summary);
+  item.append(summary);
 }
 itemButton.addEventListener("click", () =>
   resultClickHandler(result.attributes[amenityLayer.objectIdField])
 );
 
-resultsNode.appendChild(itemButton);
+resultsNode.append(itemButton);
 }
 }
 
@@ -274,26 +274,26 @@ color: white;
       </div>
     </calcite-shell-center-row>
     <calcite-shell-panel slot="panel-end" detached>
-      <calcite-panel id="filters" heading="Filters">
+      <calcite-panel id="filters" heading="Point of interest">
         <calcite-action id="reset" icon="reset" slot="header-actions-end" hidden></calcite-action>
-        <calcite-block heading="Basics" open>
-          <calcite-label>
-            Amenity type
-            <calcite-select id="amenityType">
-              <calcite-option value="all">All</calcite-option>
-            </calcite-select>
-          </calcite-label>
-          <calcite-label>
-            Cuisine
-            <div id="cuisineType"></div>
-          </calcite-label>
-        </calcite-block>
-        <calcite-block heading="Walking Distance" open>
-          <calcite-block-section id="walkingDistanceSection" text="Calculate possible walking distance (km)"
+        <calcite-block open>
+          <calcite-block-section id="walkingDistanceSection" text="Get me close!"
                                  toggle-display="switch">
             <calcite-label>
-              <!-- Walking distance (in kilometres) -->
-              <calcite-slider id="walkingDistanceSlider" label-handles max-value="5" max="5" step="1"
+              Type
+              <calcite-select id="poiTypeSelection">
+                <calcite-option value="all">All</calcite-option>
+              </calcite-select>
+            </calcite-label>
+            <calcite-label>
+              Selection
+              <div class="scroller">
+                <calcite-list id="poiSelection" filter-enabled selection-mode="single"></calcite-list>
+              </div>
+            </calcite-label>
+            <calcite-label>
+              Walking distance
+              <calcite-slider id="walkingDistanceSelection" label-handles max-value="5" max="5" step="1"
                               value="0"></calcite-slider>
             </calcite-label>
           </calcite-block-section>
