@@ -54,218 +54,234 @@
             <pre class="pre-lang"><code class="language-html">
 &lt;!-- Application layout using Calcite --&gt;
 &lt;calcite-shell content-behind id=&quot;shell&quot;&gt;
-&lt;div slot=&quot;header&quot;&gt;&lt;/div&gt;
-&lt;calcite-shell-panel slot=&quot;panel-start&quot; id=&quot;panel-start&quot;&gt;
-&lt;/calcite-shell-panel&gt
-&lt;div id=&quot;viewDiv&quot;&gt;&lt;/div&gt;
-&lt;calcite-shell-panel slot=&quot;panel-end&quot; detached&gt;
-&lt;/calcite-shell-panel&gt;
+  &lt;div slot=&quot;header&quot;&gt;&lt;/div&gt;
+  &lt;calcite-shell-panel slot=&quot;panel-start&quot; id=&quot;panel-start&quot;&gt;
+  &lt;/calcite-shell-panel&gt
+  &lt;div id=&quot;viewDiv&quot;&gt;&lt;/div&gt;
+  &lt;calcite-shell-panel slot=&quot;panel-end&quot; detached&gt;
+  &lt;/calcite-shell-panel&gt;
 &lt;/calcite-shell&gt;
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-html">
 &lt;!-- Results panel --&gt;
 &lt;calcite-shell-panel slot=&quot;panel-start&quot; id=&quot;panel-start&quot;&gt;
-&lt;calcite-flow id=&quot;flow&quot;&gt;
-&lt;calcite-panel heading=&quot;Results&quot; id=&quot;resultBlock&quot; loading&gt;
-  &lt;calcite-pagination id=&quot;pagination&quot; slot=&quot;footer&quot;&gt;
-  &lt;/calcite-pagination&gt;
-  &lt;calcite-block open id=&quot;results&quot;&gt;
-  &lt;/calcite-block&gt;
-&lt;/calcite-panel&gt;
-&lt;/calcite-flow&gt;
+  &lt;calcite-flow id=&quot;flow&quot;&gt;
+    &lt;calcite-flow-item heading=&quot;Results&quot; id=&quot;resultBlock&quot; loading&gt;
+      &lt;calcite-pagination id=&quot;pagination&quot; slot=&quot;footer&quot;&gt;
+      &lt;/calcite-pagination&gt;
+      &lt;calcite-block open id=&quot;results&quot;&gt;
+      &lt;/calcite-block&gt;
+    &lt;/calcite-flow-item&gt;
+  &lt;/calcite-flow&gt;
 &lt;/calcite-shell-panel&gt;
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-html">
 &lt;!-- Filters panel --&gt;
 &lt;calcite-panel id=&quot;filters&quot; heading=&quot;Filters&quot;&gt;
-&lt;calcite-action id=&quot;reset&quot; icon=&quot;reset&quot; slot=&quot;header-actions-end&quot; hidden&gt;
-&lt;/calcite-action&gt;
-&lt;calcite-block heading=&quot;Basics&quot; open&gt;
-&lt;calcite-label&gt;
-  Amenity type
-  &lt;calcite-select id=&quot;amenityType&quot;&gt;
-    &lt;calcite-option value=&quot;all&quot;&gt;All&lt;/calcite-option&gt;
-  &lt;/calcite-select&gt;
-&lt;/calcite-label&gt;
-&lt;calcite-label&gt;
-  Cuisine
-  &lt;div id=&quot;cuisineType&quot;&gt;&lt;/div&gt;
-&lt;/calcite-label&gt;
-&lt;calcite-label&gt;
-  Walking Distance
-  &lt;calcite-slider id=&quot;attendance&quot; range label-handles
-   max-value=&quot;5&quot;
-   max=&quot;5&quot;
-    step=&quot;1&quot;&gt;
-  &lt;/calcite-slider&gt;
-&lt;/calcite-label&gt;
-&lt;/calcite-block&gt;
+  &lt;calcite-action id=&quot;reset&quot; icon=&quot;reset&quot;
+                  slot=&quot;header-actions-end&quot; hidden&gt;&lt;/calcite-action&gt;
+  &lt;calcite-block open&gt;
+    &lt;calcite-block-section id=&quot;walkingDistanceSection&quot;
+                           text=&quot;By point of interest proximity&quot;
+                           toggle-display=&quot;switch&quot;&gt;
+      &lt;calcite-label&gt;
+        Point of interest
+        &lt;div class=&quot;scroller&quot;&gt;
+          &lt;calcite-list id=&quot;poiSelection&quot; filter-enabled
+                        selection-mode=&quot;single&quot;&gt;&lt;/calcite-list&gt;
+        &lt;/div&gt;
+      &lt;/calcite-label&gt;
+      &lt;calcite-label&gt;
+        Walking distance
+        &lt;calcite-slider id=&quot;walkingDistanceSelection&quot;
+                        label-handles max-value=&quot;5&quot; max=&quot;5&quot; step=&quot;1&quot;
+                        value=&quot;0&quot;&gt;&lt;/calcite-slider&gt;
+      &lt;/calcite-label&gt;
+    &lt;/calcite-block-section&gt;
+  &lt;/calcite-block&gt;
 &lt;/calcite-panel&gt;
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-js">
 // Fetch results on view extent changes
-view.watch("center", () => !appState.activeItem
-        && queryItems());
+view.watch(
+  "center",
+  () => !appState.activeItem && queryItems()
+);
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-js">
 // Page results
-paginationNode.num = appConfig.pageNum;
-paginationNode.start = 1;
-paginationNode.addEventListener("calcitePaginationChange",
-(event) => {
-queryItems(event.detail.start - 1);
-});
+paginationNode.pageSize = appConfig.pageNum;
+paginationNode.startItem = 1;
+paginationNode.addEventListener(
+  "calcitePaginationChange",
+  (event) => queryItems(event.target.startItem - 1)
+);
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-js">
 // Query for list of results to display
 async function queryItems(start = 0) {
-resetNode.hidden = !appState.hasFilterChanges;
-resetNode.indicator = appState.hasFilterChanges;
+  resetNode.hidden = !appState.hasFilterChanges;
+  resetNode.indicator = appState.hasFilterChanges;
 
-if (!amenityLayerView) {
-return;
-}
+  if (!lodgingLayerView) {
+    return;
+  }
 
-resultBlockNode.loading = true;
+  resultBlockNode.loading = true;
 
-const where = whereClause();
+  lodgingLayerView.featureEffect = {
+    filter: {
+      geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : undefined
+    },
+    excludedEffect: "grayscale(80%) opacity(30%)",
+  };
 
-amenityLayerView.featureEffect = {
-filter: {
-  where: where,
-  geometry: appState.walkingDistanceGraphic ?
-    appState.walkingDistanceGraphic.geometry : undefined
-},
-excludedEffect: "grayscale(80%) opacity(30%)",
-};
+  await whenFalseOnce(lodgingLayerView, "updating");
 
-await whenFalseOnce(amenityLayerView, "updating");
+  if (start === 0) {
+    appState.count = await lodgingLayerView.queryFeatureCount({
+      geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
+    });
+    paginationNode.totalItems = appState.count;
+    paginationNode.startItem = 1;
+  }
 
-if (start === 0) {
-appState.count =
-await amenityLayerView.queryFeatureCount({
-  geometry: view.extent.clone(),
-  where,
-});
-paginationNode.total = appState.count;
-paginationNode.start = 1;
-}
+  paginationNode.hidden = appState.count <= appConfig.pageNum;
 
-paginationNode.hidden =
-appState.count <= appConfig.pageNum;
+  const results = await lodgingLayerView.queryFeatures({
+    start,
+    num: appConfig.pageNum,
+    geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
+    outFields: [
+      ...appConfig.lodgingLayerOutFields,
+      lodgingLayer.objectIdField,
+    ],
+  });
 
-const results = await amenityLayerView.queryFeatures({
-start,
-num: appConfig.pageNum,
-geometry: view.extent.clone(),
-where: whereClause(),
-outFields: [
-  ...appConfig.amenityLayerOutFields,
-  amenityLayer.objectIdField,
-],
-});
+  resultBlockNode.loading = false;
+  resultBlockNode.summary = `${appState.count} locations found within the map.`;
 
-resultBlockNode.loading = false;
-
-resultBlockNode.summary =
-`${appState.count} universities found within the map.`;
-
-resultsNode.innerHTML = "";
-if (results.features.length) {
-results.features.map((result) =>
-displayResult(result));
-} else {
-displayNoResult();
-}
+  resultsNode.innerHTML = "";
+  if (results.features.length) {
+    results.features.map((result) => displayResult(result));
+  } else {
+    displayNoResult();
+  }
 }
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-js">
 // Display result in list of results
 function displayResult(result) {
-const attributes = result.attributes;
-const itemButton = document.createElement("button");
-itemButton.className = "item-button";
-const item = document.createElement("calcite-card");
-itemButton.append(item);
+  if(result.attributes['name']){
+    const attributes = result.attributes;
+    const itemButton = document.createElement("button");
+    itemButton.className = "item-button";
+    const item = document.createElement("calcite-card");
+    itemButton.append(item);
 
-if(result.attributes['name']){
-const attributes = result.attributes;
-const itemButton = document.createElement("button");
-itemButton.className = "item-button";
-const item = document.createElement("calcite-card");
-itemButton.append(item);
+    const thumbnail = document.createElement("img");
+    thumbnail.src = attributes["picture_url"];
+    thumbnail.height = 150;
+    thumbnail.slot = "thumbnail";
+    item.append(thumbnail);
 
-const chipState = document.createElement("calcite-chip");
-chipState.slot = "footer-leading";
-chipState.scale = "s";
-chipState.icon = "group";
-chipState.innerText = attributes["amenity"];
-item.append(chipState);
+    const chipState = document.createElement("calcite-chip");
+    chipState.slot = "footer-start";
+    chipState.scale = "s";
+    chipState.icon = "group";
+    chipState.innerText = attributes["property_type"];
+    item.append(chipState);
 
-const title = document.createElement("span");
-title.slot = "title";
-title.innerText = handleCasing(attributes["name"]);
-item.append(title);
+    const title = document.createElement("span");
+    title.slot = "title";
+    title.innerText = handleCasing(attributes["name"]);
+    item.append(title);
 
-if(attributes["cuisine"]) {
-  const summary = document.createElement("span");
-  summary.slot = "subtitle";
-  summary.innerText = handleCasing(attributes["cuisine"]);
-  item.append(summary);
-}
-itemButton.addEventListener("click", () =>
-  resultClickHandler(result.attributes[amenityLayer.objectIdField])
-);
+    itemButton.addEventListener("click", () =>
+      resultClickHandler(result.attributes[lodgingLayer.objectIdField])
+    );
 
-resultsNode.append(itemButton);
-}
+    resultsNode.append(itemButton);
+  }
 }
 
 </code></pre>
             <pre hidden class="pre-lang"><code class="language-js">
-// Walking Distance Slider
-walkingDistanceNode.addEventListener("calciteSliderInput",
-(event) => {
-appState.walkingDistance.min = event.target.minValue;
-appState.walkingDistance.max = event.target.maxValue;
-appState.hasFilterChanges = true;
-filterMap();
-});
-walkingDistanceNode.addEventListener("calciteSliderChange",
-(event) => {
-appState.walkingDistance.min = event.target.minValue;
-appState.walkingDistance.max = event.target.maxValue;
-appState.hasFilterChanges = true;
-queryItems();
-});
+// Walking Distance Slider and POI selection
+poiSelectionNode.addEventListener(
+  "calciteListItemSelect",
+  async (event) => {
+    appState.activePoi = (await poiLayer.queryFeatures({
+      objectIds: [event.target.value],
+      returnGeometry: true
+    })).features[0];
+
+    updateWalkingTimeResults();
+  }
+);
+
+walkingDistanceSelectionNode.addEventListener(
+  "calciteSliderInput",
+  (event) => {
+    appState.walkingDistance = event.target.value;
+    appState.hasFilterChanges = true;
+    filterMap();
+  }
+);
+
+walkingDistanceSelectionNode.addEventListener(
+  "calciteSliderChange",
+  async (event) => {
+    appState.walkingDistance = Number(event.target.value);
+    appState.hasFilterChanges = true;
+    updateWalkingTimeResults();
+  }
+);
+
+async function updateWalkingTimeResults() {
+  if (!appState.walkingDistance || !appState.activePoi.geometry) {
+    return;
+  }
+
+  await CreateWalkTimeAnalysis(
+    appState.walkingDistance,
+    appState.activePoi.geometry
+  );
+  queryItems();
+}
 
   </code></pre>
             <pre hidden class="pre-lang"><code class="language-css">
 /* Theming snippet */
 body {
---calcite-ui-brand: purple;
---calcite-ui-brand-hover: rgb(94, 0, 94);
---calcite-ui-brand-press: rgb(87, 0, 87);
+  --calcite-ui-brand: #ff5a60;
+  --calcite-ui-brand-hover: #ff4046;
+  --calcite-ui-brand-press: #ff4046;
 }
 body.calcite-theme-dark {
---calcite-ui-brand: rgb(125, 0, 209);
---calcite-ui-brand-hover: rgb(121, 0, 205);
---calcite-ui-brand-press: rgb(141, 0, 225);
+  --calcite-ui-brand: #ff5a60;
+  --calcite-ui-brand-hover: #ff4046;
+  --calcite-ui-brand-press: #ff4046;
 }
 .temporary-header {
-color: purple;
-background-color: var(--calcite-ui-background);
-justify-content: space-between;
+  padding: 0.75rem;
+  font-size: 20px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  color: var(--calcite-ui-brand);
+  background-color: var(--calcite-ui-background);
+  justify-content: space-between;
 }
 .calcite-theme-dark .temporary-header {
-color: white;
---calcite-ui-icon-color: white;
+  color: var(--calcite-ui-brand);
+  --calcite-ui-icon-color: var(--calcite-ui-text-1);
 }
 
   </code></pre>
@@ -274,19 +290,13 @@ color: white;
       </div>
     </calcite-shell-center-row>
     <calcite-shell-panel slot="panel-end" detached>
-      <calcite-panel id="filters" heading="Point of interest">
+      <calcite-panel id="filters" heading="Filters">
         <calcite-action id="reset" icon="reset" slot="header-actions-end" hidden></calcite-action>
         <calcite-block open>
-          <calcite-block-section id="walkingDistanceSection" text="Get me close!"
+          <calcite-block-section id="walkingDistanceSection" text="By point of interest proximity"
                                  toggle-display="switch">
             <calcite-label>
-              Type
-              <calcite-select id="poiTypeSelection">
-                <calcite-option value="all">All</calcite-option>
-              </calcite-select>
-            </calcite-label>
-            <calcite-label>
-              Selection
+              Point of interest
               <div class="scroller">
                 <calcite-list id="poiSelection" filter-enabled selection-mode="single"></calcite-list>
               </div>

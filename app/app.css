@@ -1,4 +1,3 @@
-#campusViewDiv,
 #viewDiv {
   height: 100%;
   width: 100%;
@@ -9,24 +8,6 @@
 #viewDiv {
   margin-left: 340px;
   border-top: 1px solid var(--calcite-ui-border-3);
-}
-
-#campusViewDiv {
-  pointer-events: none;
-  height: 200px;
-}
-
-.campus-image-container {
-  width: 100%;
-  margin-bottom: 0.75rem;
-  background-color: var(--calcite-ui-background);
-  text-align: center;
-  height: 200px;
-}
-
-.campus-image-container img {
-  height: 200px;
-  max-width: 100%;
 }
 
 #custom-panel {
@@ -100,29 +81,8 @@ calcite-action-pad {
   margin-inline-end: 1rem;
 }
 
-/* styling for detail chips */
-calcite-block calcite-chip {
-  margin-inline-end: 0.5rem;
-  margin-block-start: 0.5rem;
-}
-
 calcite-block calcite-notice {
   margin-block-end: 1rem;
-}
-/* styling for chip select */
-#cuisineType calcite-chip {
-  margin-inline-end: 0.5rem;
-  margin-block-start: 0.5rem;
-  cursor: pointer;
-  box-shadow: 0 0 0 2px transparent 0 0 0 4px transparent;
-  transition: box-shadow 0.15s ease-in-out;
-  --calcite-ui-info: var(--calcite-ui-brand);
-}
-
-#cuisineType calcite-chip:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--calcite-ui-foreground-1),
-    0 0 0 4px var(--calcite-ui-brand);
 }
 
 .calcite-panel-contents {

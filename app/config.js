@@ -1,9 +1,7 @@
 export const appConfig = {
   webmap: "0f5ab88c060d437bbcc9f8a2a4e1f01a",
   defaultType: "all",
-  AmenityTypes: {
-  },
-  allowedCodes: [
+  allowedPoiTypeCodes: [
     "AmusementPark",
     "Bay",
     "Beach",

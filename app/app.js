@@ -17,11 +17,10 @@ import { appConfig } from "./config.js";
 import { appState } from "./state.js";
 
 async function init() {
-  const allowedCodes = appConfig.allowedCodes;
+  const allowedCodes = appConfig.allowedPoiTypeCodes;
   // query for elements
   const resultsNode = document.getElementById("results");
   const walkingDistanceSelectionNode = document.getElementById("walkingDistanceSelection");
-  const poiTypeSelectionNode = document.getElementById("poiTypeSelection");
   const poiSelectionNode = document.getElementById("poiSelection");
   const resultBlockNode = document.getElementById("resultBlock");
   const paginationNode = document.getElementById("pagination");
@@ -60,14 +59,13 @@ async function init() {
 
     filtersNode.hidden = true;
     const attributes = result.attributes;
-    // TODO: rename to flow-item
-    const detailPanelNode = document.getElementById("detail-panel");
+    const detailFlowItemNode = document.getElementById("detail-flow-item");
     // a janky way to replace content in a single panel vs appending entire new one each time
-    if (!detailPanelNode) {
-      const panel = document.createElement("calcite-flow-item");
-      panel.heading = handleCasing(attributes["name"]);
-      panel.id = "detail-panel";
-      panel.addEventListener("calcitePanelBackClick", async () => {
+    if (!detailFlowItemNode) {
+      const flowItem = document.createElement("calcite-flow-item");
+      flowItem.heading = handleCasing(attributes["name"]);
+      flowItem.id = "detail-flow-item";
+      flowItem.addEventListener("calciteFlowItemBack", async () => {
         if (appState.savedExtent) {
           await view.goTo(appState.savedExtent);
           appState.savedExtent = null;
@@ -90,12 +88,6 @@ async function init() {
 
       const blockTwo = document.createElement("calcite-block");
       blockTwo.classList.add("calcite-block-contents");
-      blockTwo.heading = "Address";
-      blockTwo.collapsible = true;
-      blockTwo.open = true;
-
-      const blockTwo = document.createElement("calcite-block");
-      blockTwo.classList.add("calcite-block-contents");
       blockTwo.heading = "Amenities";
       blockTwo.collapsible = true;
       blockTwo.open = true;
@@ -115,8 +107,10 @@ async function init() {
       const listingImageNode = document.createElement("img");
       listingImageNode.src = attributes["picture_url"];
       listingImageNode.width = 300;
-      // listingImageNode.id = "campusImageContainer"; // drop ID & class
-      // listingImageNode.className = "campus-image-container";
+
+      const descriptionText = document.createElement("p");
+      descriptionText.innerHTML = attributes["description"];
+      descriptionText.id = "detail-description";
 
       function createLabel(text, valueOrNode, valueId) {
         const label = document.createElement("calcite-label");
@@ -143,10 +137,6 @@ async function init() {
         return icon;
       }
 
-      const descriptionText = document.createElement("p");
-      descriptionText.innerHTML = attributes["description"];
-      descriptionText.id = "detail-description";
-
       blockOne.append(listingImageNode);
       blockOne.append(descriptionText);
       blockOne.append(createLabel("Price", attributes["price"], "detail-price"));
@@ -170,7 +160,7 @@ async function init() {
         itemWebsite.href = `${attributes["listing_url"]}`;
         itemWebsite.rel = `noref noreferrer`;
         itemWebsite.target = `blank`;
-        panel.append(itemWebsite);
+        flowItem.append(itemWebsite);
       }
 
       const amenitiesText = attributes["amenities"];
@@ -190,9 +180,6 @@ async function init() {
 
         blockTwo.append(amenitiesScroller);
       }
-
-      // TODO: drop
-      // const labelWebsite = createLabel("Website", attributes["website"], "detail-website");
 
       const hostName = createLabel("Name", attributes["host_name"], "detail-host-name");
       const hostAbout = createLabel("About", attributes["host_about"], "detail-host-about");
@@ -225,48 +212,11 @@ async function init() {
       labelRating.append(rating)
       blockFour.append(labelRating)
 
-      panel.append(div);
-
-      div.append(blockOne);
-      div.append(blockTwo);
-      div.append(blockThree);
-      div.append(blockFour);
-
-      flowNode.append(panel);
-    } else {
-      /* replace existing element content */
-      detailPanelNode.heading = handleCasing(attributes["name"]);
-
-      document.getElementById(
-        "detail-website-link"
-      ).href = `http://${attributes["website"]}`;
-
-      document.getElementById(
-        "amenity-type"
-      ).innerText = `${attributes["amenity"]}`;
-
-      document.getElementById("detail_address").innerText =
-        `${attributes["addr_street"]} ${attributes["addr_housenumber"]}`;
-
-      document.getElementById("detail_postcode").innerText =
-      `${attributes["addr_postcode"]}`;
-
-      document.getElementById("detail_city").innerText =
-      `${attributes["addr_city"]}`;
-
-      // TODO: change to amenities
-      document.getElementById("detail_opening_hours").innerText = `${
-        attributes["opening_hours"] ? attributes["opening_hours"] : "N/A"
-      }`;
-
-      document.getElementById("detail-website").innerText = `${
-        attributes["website"] ? attributes["website"] : "N/A"
-      }`;
-
-      document.getElementById("detail-phone").innerText = `${
-        attributes["phone"] ? attributes["phone"] : "N/A"
-      }`;
+      flowItem.append(div);
+      div.append(blockOne, blockTwo, blockThree, blockFour);
+      flowNode.append(flowItem);
     }
+
     view.goTo(
       {
         center: [result.geometry.longitude, result.geometry.latitude],
@@ -289,53 +239,13 @@ async function init() {
       }
   }
 
-  function combineSQLStatements(where, sql, operator = "AND") {
-    return where ? ` ${operator} (${sql})` : `(${sql})`;
-  }
-
-  function whereClause() {
-    let where = "";
-
-    if (appState.activeCuisineTypes.length > 0) {
-      let cuisineWhere = "";
-      const values = appState.activeCuisineTypes.flat();
-      values.forEach(
-        (value) =>
-          (cuisineWhere += combineSQLStatements(
-            cuisineWhere,
-            `cuisine = '${value}'`,
-            "OR"
-          ))
-      );
-      where += combineSQLStatements(where, cuisineWhere);
-    }
-
-    const amenityTypeValue = poiTypeSelectionNode.value;
-    if (amenityTypeValue && amenityTypeValue !== appConfig.defaultType) {
-      const values = amenityTypeValue.split(",");
-      let amenityWhere = "";
-      values.forEach(
-        (value) =>
-          (amenityWhere += combineSQLStatements(
-            amenityWhere,
-            `amenity = '${value}'`,
-            "OR"
-          ))
-      );
-      where += combineSQLStatements(where, amenityWhere);
-    }
-
-    return where;
-  }
-
   function resetFilters() {
-    poiTypeSelectionNode.value = appConfig.defaultType;
+    poiSelectionNode.selectedItems[0].selected = false;
     appState.walkingDistance = appConfig.walkingDistance;
     appState.walkingDistanceGraphic = null
     view.graphics.removeAll()
     walkingDistanceSelectionNode.maxValue = appConfig.walkingDistance;
     walkingDistanceSelectionNode.value = "0";
-    appState.activeCuisineTypes = [];
     [...document.querySelectorAll(`[data-type*="type"]`)].forEach(
       (item) => (item.color = "grey")
     );
@@ -347,8 +257,6 @@ async function init() {
     if (!lodgingLayerView) {
       return;
     }
-
-    const where = whereClause();
 
     lodgingLayerView.featureEffect = {
       filter: {
@@ -384,11 +292,17 @@ async function init() {
       const item = document.createElement("calcite-card");
       itemButton.append(item);
 
+      const thumbnail = document.createElement("img");
+      thumbnail.src = attributes["picture_url"];
+      thumbnail.height = 150;
+      thumbnail.slot = "thumbnail";
+      item.append(thumbnail);
+
       const chipState = document.createElement("calcite-chip");
-      chipState.slot = "footer-leading";
+      chipState.slot = "footer-start";
       chipState.scale = "s";
       chipState.icon = "group";
-      chipState.innerText = attributes["amenity"];
+      chipState.innerText = attributes["property_type"];
       item.append(chipState);
 
       const title = document.createElement("span");
@@ -396,12 +310,6 @@ async function init() {
       title.innerText = handleCasing(attributes["name"]);
       item.append(title);
 
-      if(attributes["cuisine"]) {
-        const summary = document.createElement("span");
-        summary.slot = "subtitle";
-        summary.innerText = handleCasing(attributes["cuisine"]);
-        item.append(summary);
-      }
       itemButton.addEventListener("click", () =>
         resultClickHandler(result.attributes[lodgingLayer.objectIdField])
       );
@@ -420,11 +328,8 @@ async function init() {
 
     resultBlockNode.loading = true;
 
-    const where = whereClause();
-
     lodgingLayerView.featureEffect = {
       filter: {
-        where,
         geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : undefined
       },
       excludedEffect: "grayscale(80%) opacity(30%)",
@@ -435,7 +340,6 @@ async function init() {
     if (start === 0) {
       appState.count = await lodgingLayerView.queryFeatureCount({
         geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
-        where,
       });
       paginationNode.totalItems = appState.count;
       paginationNode.startItem = 1;
@@ -447,9 +351,7 @@ async function init() {
       start,
       num: appConfig.pageNum,
       geometry: appState.walkingDistanceGraphic ? appState.walkingDistanceGraphic.geometry : view.extent.clone(),
-      where,
       outFields: [
-        // TODO: trim out fields required for demo
         ...appConfig.lodgingLayerOutFields,
         lodgingLayer.objectIdField,
       ],
@@ -530,21 +432,6 @@ async function init() {
   await lodgingLayer.load();
   await poiLayer.load();
 
-  const poiTypeOptions = poiLayer.fields.find(field => field.name === "TYPE").domain.codedValues;
-
-  poiTypeSelectionNode.append(
-    ...(
-      poiTypeOptions.filter(({ code }) => allowedCodes.includes(code))
-      .sort(({ name: name1 }, { name: name2 }) => name1.localeCompare(name2))
-      .map(({ name, code }) => {
-        const option = document.createElement("calcite-option");
-        option.label = name;
-        option.value = code;
-        return option;
-      })
-    )
-  );
-
   filtersNode.loading = true;
 
   const pois = await poiLayer.queryFeatures({
@@ -604,6 +491,8 @@ async function init() {
     loadComplete = true;
   });
 
+  // Walking Time
+
   poiSelectionNode.addEventListener("calciteListItemSelect", async (event) => {
     appState.activePoi = (await poiLayer.queryFeatures({
       objectIds: [event.target.value],
@@ -613,19 +502,11 @@ async function init() {
     updateWalkingTimeResults();
   });
 
-  // Walking Time
-
-  walkingDistanceSelectionNode.maxValue = appConfig.walkingTime;
   walkingDistanceSelectionNode.addEventListener("calciteSliderInput", (event) => {
     appState.walkingDistance = event.target.value;
     appState.hasFilterChanges = true;
-  });
-
-  async function updateWalkingTimeResults() {
-    await CreateDriveTimeAnalysis(appState.walkingDistance, appState.activePoi.geometry);
-    queryItems();
     filterMap();
-  }
+  });
 
   walkingDistanceSelectionNode.addEventListener("calciteSliderChange", async (event) => {
     appState.walkingDistance = Number(event.target.value);
@@ -633,12 +514,16 @@ async function init() {
     updateWalkingTimeResults();
   });
 
-  poiTypeSelectionNode.addEventListener("calciteSelectChange", () => {
-    appState.hasFilterChanges = true;
-    queryItems();
-  });
+  async function updateWalkingTimeResults() {
+    if (!appState.walkingDistance || !appState.activePoi.geometry) {
+      return;
+    }
 
-  async function CreateDriveTimeAnalysis (walkingDistance, location) {
+    await CreateWalkTimeAnalysis(appState.walkingDistance, appState.activePoi.geometry);
+    queryItems();
+  }
+
+  async function CreateWalkTimeAnalysis (walkingDistance, location) {
       //only start the process if the load is complete (traveltimes have been fetched and layers have been created)
       if (loadComplete) {
         // create a graphic to show an the map and use as input
@@ -668,7 +553,6 @@ async function init() {
         });
         // solve the service area
         let serviceAreaSolveResult = await serviceArea.solve(routeServiceUrl, serviceAreaParameters)
-        console.log("serviceAreaSolveResult", serviceAreaSolveResult);
 
         const serviceAreaPolygon = serviceAreaSolveResult.serviceAreaPolygons.features[0].geometry;
 
@@ -708,30 +592,10 @@ async function init() {
     }, 1000);
   }
 
-  async function getBusinessInformationById (businessId) {
-    try {
-      const businessInfoResult = await fetch(
-        `${poiLayer}${businessId}`, {
-        headers: {
-          Authorization: `Bearer ${apiKeyYelp}`
-        }
-      })
-      const businessInfoJson = await businessInfoResult.json();
-      return businessInfoJson
-    } catch (error) {
-      console.error('An error occured: ', error)
-    }
-    return false
-
-
-  }
-
   // Pagination
   paginationNode.pageSize = appConfig.pageNum;
   paginationNode.startItem = 1;
-  paginationNode.addEventListener("calcitePaginationChange", (event) => {
-    queryItems(event.target.startItem - 1);
-  });
+  paginationNode.addEventListener("calcitePaginationChange", (event) => queryItems(event.target.startItem - 1));
 
   // Reset button
   resetNode.addEventListener("click", () => resetFilters());
